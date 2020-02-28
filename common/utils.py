@@ -45,12 +45,12 @@ class RescaleAction(gym.ActionWrapper):
         return action
 
 def make_norm_env(cfg):
-    if 'gym' in cfg.env:
+    if 'gym' in cfg.env_name:
         from mbbl.env.env_register import make_env
         misc_info = {'reset_type': 'gym'}
-        if 'gym_pets' in cfg.env:
+        if 'gym_pets' in cfg.env_name:
             misc_info['pets'] = True
-        env, meta = make_env(cfg.env, rand_seed=cfg.seed, misc_info=misc_info)
+        env, meta = make_env(cfg.env_name, rand_seed=cfg.seed, misc_info=misc_info)
 
         env.metadata = env._env.metadata
         env.reward_range = env._env.reward_range
@@ -63,7 +63,7 @@ def make_norm_env(cfg):
         assert not cfg.max_episode_steps
 
         # env.action_space = env._env.action_space
-        if cfg.env == 'gym_fswimmer' or 'gym_pets' in cfg.env:
+        if cfg.env_name == 'gym_fswimmer' or 'gym_pets' in cfg.env_name:
             env._max_episode_steps = env.env._env_info['max_length']
         else:
             env._max_episode_steps = env.env._env._max_episode_steps
@@ -75,11 +75,11 @@ def make_norm_env(cfg):
         env.render = render
 
         def set_seed(seed):
-            if 'gym_pets' in cfg.env or cfg.env == 'gym_fswimmer':
+            if 'gym_pets' in cfg.env_name or cfg.env_name == 'gym_fswimmer':
                 return env.env._env.seed(seed)
             else:
                 return env.env._env.env.seed(seed)
-    elif cfg.env == 'Humanoid-v2':
+    elif cfg.env_name == 'Humanoid-v2':
         env = gym.make('Humanoid-v2')
         env = RescaleAction(env, -1., 1.)
         assert not cfg.max_episode_steps
@@ -93,7 +93,7 @@ def make_norm_env(cfg):
 
         def set_seed(seed):
             return env.env.seed(seed)
-    elif cfg.env == 'pets_cheetah':
+    elif cfg.env_name == 'pets_cheetah':
         from common.env import register_pets_environments
         register_pets_environments()
         env = gym.make('PetsCheetah-v0')
@@ -109,7 +109,7 @@ def make_norm_env(cfg):
 
         def set_seed(seed):
             return env.env.seed(seed)
-    elif cfg.env == 'pets_reacher':
+    elif cfg.env_name == 'pets_reacher':
         from common.env import register_pets_environments
         register_pets_environments()
         env = gym.make('PetsReacher-v0')
@@ -125,7 +125,7 @@ def make_norm_env(cfg):
 
         def set_seed(seed):
             return env.env.seed(seed)
-    elif cfg.env == 'pets_pusher':
+    elif cfg.env_name == 'pets_pusher':
         from common.env import register_pets_environments
         register_pets_environments()
         env = gym.make('PetsPusher-v0')
@@ -141,7 +141,7 @@ def make_norm_env(cfg):
 
         def set_seed(seed):
             return env.env.seed(seed)
-    elif cfg.env == 'mbpo_hopper':
+    elif cfg.env_name == 'mbpo_hopper':
         env = gym.make('Hopper-v2')
         env = RescaleAction(env, -1., 1.)
         assert not cfg.max_episode_steps
@@ -155,7 +155,7 @@ def make_norm_env(cfg):
 
         def set_seed(seed):
             return env.env.seed(seed)
-    elif cfg.env == 'mbpo_walker2d':
+    elif cfg.env_name == 'mbpo_walker2d':
         env = gym.make('Walker2d-v2')
         env = RescaleAction(env, -1., 1.)
         assert not cfg.max_episode_steps
@@ -171,7 +171,7 @@ def make_norm_env(cfg):
 
         def set_seed(seed):
             return env.env.seed(seed)
-    elif cfg.env == 'mbpo_ant':
+    elif cfg.env_name == 'mbpo_ant':
         from common.env import register_mbpo_environments
         register_mbpo_environments()
         env = gym.make('AntTruncatedObs-v2')
@@ -187,7 +187,7 @@ def make_norm_env(cfg):
 
         def set_seed(seed):
             return env.env.seed(seed)
-    elif cfg.env == 'mbpo_cheetah':
+    elif cfg.env_name == 'mbpo_cheetah':
         from common.env import register_mbpo_environments
         register_mbpo_environments()
         env = gym.make('HalfCheetah-v2')
@@ -203,7 +203,7 @@ def make_norm_env(cfg):
 
         def set_seed(seed):
             return env.env.seed(seed)
-    elif cfg.env == 'mbpo_humanoid':
+    elif cfg.env_name == 'mbpo_humanoid':
         from common.env import register_mbpo_environments
         register_mbpo_environments()
         env = gym.make('HumanoidTruncatedObs-v2')

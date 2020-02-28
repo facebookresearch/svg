@@ -120,6 +120,7 @@ class ReplayBuffer(object):
         return obses, actions, rewards
 
     def save(self, save_dir):
+        assert not self.full # Unimplemented
         if self.idx == self.last_save:
             return
         if not os.path.exists(save_dir):

@@ -1,0 +1,136 @@
+model_free_hidden_dim: 512
+model_free_hidden_depth: 4
+
+agent:
+  name: sac_mve
+  class: agent.sac_mve.SACMVEAgent
+  params:
+    env_name: ${env_name}
+    obs_dim: ??? # to be specified later
+    action_dim: ??? # to be specified later
+    action_range: ??? # to be specified later
+    device: ${device}
+    dx_cfg: ${dx}
+    num_train_steps: ${num_train_steps}
+
+    train_with_policy_mean: false
+    train_action_noise: 0.0
+
+    temp_cfg: ${learn_temp}
+
+    alpha_scale_kl: true
+    anneal_policy_std: false
+    policy_std_decay: 5.
+    policy_init_log_std_bounds: [-5, 2]
+
+    actor_cfg: ${normal_actor}
+    actor_lr: 1e-4
+    actor_betas: [0.9, 0.999]
+    actor_update_freq: 1
+    actor_num_sample: 1
+    actor_clip_grad_norm: 5.0
+    actor_mve: true
+
+    critic_cfg: ${double_q_critic}
+    critic_lr: 1e-4
+    critic_tau: 0.005
+    critic_target_update_freq: 1
+    critic_clip_grad_norm: 5.0
+    critic_target_mve: false
+
+    discount: 0.99
+    seq_batch_size: 512
+    step_batch_size: 1024
+    horizon: 5
+    seq_train_length: ${agent.params.horizon}
+    update_freq: 1
+
+    model_update_freq: 1
+    model_update_repeat: 4
+
+    model_free_update_repeat: 1
+
+    rew_obs_noise: 0.
+    done_obs_noise: 0.1
+    done_obs_repeat: 10
+
+    rew_hidden_dim: 512
+    rew_hidden_depth: 2
+    rew_lr: 1e-3
+
+    done_hidden_dim: 512
+    done_hidden_depth: 2
+    done_lr: 1e-3
+    done_ctrl_accum: true
+
+    act_with_horizon: false
+    warmup_steps: 0 # Auto-set if null
+
+    det_suffix: 0.0
+
+dx:
+  name: dx
+  class: common.dx.SeqDx
+  params:
+    env_name: ${env_name}
+    obs_dim: ${agent.params.obs_dim}
+    action_dim: ${agent.params.action_dim}
+    action_range: ${agent.params.action_range}
+    horizon: ${agent.params.horizon}
+    device: ${device}
+    detach_xt: true
+    xu_enc_hidden_dim: 512
+    xu_enc_hidden_depth: 2
+    x_dec_hidden_dim: 512
+    x_dec_hidden_depth: 0
+    clip_grad_norm: 1.0
+    rec_type: GRU
+    rec_latent_dim: 512
+    rec_num_layers: 2
+    lr: 1e-3
+
+normal_actor:
+  class: agent.actor.NormalActor
+  params:
+    obs_dim: ${agent.params.obs_dim}
+    action_dim: ${agent.params.action_dim}
+    hidden_dim: ${model_free_hidden_dim}
+    hidden_depth: ${model_free_hidden_depth}
+    log_std_bounds: [-5, 2]
+
+double_q_critic:
+  class: agent.critic.DoubleQCritic
+  params:
+    obs_dim: ${agent.params.obs_dim}
+    action_dim: ${agent.params.action_dim}
+    hidden_dim: ${model_free_hidden_dim}
+    hidden_depth: ${model_free_hidden_depth}
+
+learn_temp:
+  class: common.temp.LearnTemp
+  params:
+    init_temp: 5
+    max_steps: ${num_train_steps}
+    init_targ_entr: -1.
+    final_targ_entr: -1.
+    entr_decay_factor: 0.
+    only_decrease_alpha: false
+    lr: 5e-4
+    device: ${device}
+
+# exp_temp:
+#   class: common.temp.ExpTemp
+#   params:
+#     init_temp: 0.1
+#     max_steps: ${num_train_steps}
+#     temp_decay: 5.
+#     min_temp: 1e-2
+#     device: ${device}
+
+# step_temp:
+#   class: common.temp.StepTemp
+#   params:
+#     num_train_steps: ${num_train_steps}
+#     intervals: [0, 5e3]
+#     temps: [2e-1, 7e-2]
+#     device: ${device}

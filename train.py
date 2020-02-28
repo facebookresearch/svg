@@ -7,6 +7,7 @@ import copy
 import math
 import os
 import sys
+import shutil
 import time
 import pickle as pkl
 
@@ -31,7 +32,7 @@ class Workspace(object):
 
         self.logger = Logger(self.work_dir,
                              save_tb=cfg.log_save_tb,
-                             log_frequency=cfg.log_frequency,
+                             log_frequency=cfg.log_freq,
                              agent=cfg.agent.name)
 
         utils.set_seed_everywhere(cfg.seed)
@@ -49,6 +50,9 @@ class Workspace(object):
             float(self.env.action_space.high.max())
         ]
         self.agent = hydra.utils.instantiate(cfg.agent)
+
+        if isinstance(cfg.replay_buffer_capacity, str):
+            cfg.replay_buffer_capacity = int(eval(cfg.replay_buffer_capacity))
 
         self.replay_buffer = ReplayBuffer(self.env.observation_space.shape,
                                           self.env.action_space.shape,
@@ -115,18 +119,18 @@ class Workspace(object):
                         self.step, save=(self.step > self.cfg.num_seed_steps))
 
                 # evaluate agent periodically
-                if self.steps_since_eval >= self.cfg.eval_frequency:
+                if self.steps_since_eval >= self.cfg.eval_freq:
                     self.logger.log('eval/episode', self.episode, self.step)
                     eval_rew = self.evaluate()
                     self.steps_since_eval = 0
 
-                    if best_eval_rew is None or eval_rew > best_eval_rew:
+                    if self.best_eval_rew is None or eval_rew > self.best_eval_rew:
                         self.save(tag='best')
-                        best_eval_rew = eval_rew
+                        self.best_eval_rew = eval_rew
 
 
-                if self.step > 0 and self.cfg.save_frequency and \
-                  self.steps_since_save >= self.cfg.save_frequency:
+                if self.step > 0 and self.cfg.save_freq and \
+                  self.steps_since_save >= self.cfg.save_freq:
                     tag = str(self.step).zfill(self.cfg.save_zfill)
                     self.save(tag=tag)
                     self.steps_since_save = 0
@@ -143,8 +147,7 @@ class Workspace(object):
                 if self.cfg.save_latest:
                     self.save(tag='latest')
 
-                if self.cfg.save_replay:
-                    self.replay_buffer.save(self.replay_dir)
+                self.replay_buffer.save(self.replay_dir)
 
             if self.cfg.renormalize and self.replay_buffer.idx > 0 and \
                 self.step % self.cfg.renormalize_freq == 0 and \
@@ -188,6 +191,9 @@ class Workspace(object):
             self.logger.log('eval/episode', self.episode, self.step)
             self.evaluate()
 
+        if self.cfg.delete_replay_at_end:
+            shutil.rmtree(self.replay_dir)
+
     def save(self, tag='latest'):
         path = os.path.join(self.work_dir, f'{tag}.pkl')
         with open(path, 'wb') as f:
@@ -212,7 +218,7 @@ class Workspace(object):
         self.work_dir = os.getcwd()
         self.logger = Logger(self.work_dir,
                              save_tb=self.cfg.log_save_tb,
-                             log_frequency=self.cfg.log_frequency)
+                             log_frequency=self.cfg.log_freq)
         self.env = utils.make_norm_env(self.cfg)
         if 'max_episode_steps' in self.cfg and self.cfg.max_episode_steps is not None:
             self.env._max_episode_steps = self.cfg.max_episode_steps
@@ -225,7 +231,7 @@ class Workspace(object):
                                             self.env.action_space.shape,
                                             int(self.cfg.replay_buffer_capacity),
                                             self.device)
-        if 'save_replay' in self.cfg and self.cfg.save_replay:
+        if os.path.exists(self.replay_dir):
             self.replay_buffer.load(self.replay_dir)
         self.replay_buffer.mean_obs_np = self.mean_obs_np
         self.replay_buffer.std_obs_np = self.std_obs_np

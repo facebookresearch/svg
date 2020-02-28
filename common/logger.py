@@ -32,7 +32,7 @@ AGENT_TRAIN_FORMAT = {
         ('alpha_value', 'TVAL', 'float'),
         ('actor_entropy', 'AENT', 'float')
     ],
-    'mve': [
+    'sac_mve': [
         ('batch_reward', 'BR', 'float'),
         ('model_loss', 'LOSS', 'float'),
         ('model_obs_loss', 'OLOSS', 'float'),

@@ -1,0 +1,12 @@
+env_name: mbpo_humanoid
+# num_train_steps: 3e6
+num_train_steps: 1e7
+renormalize_freq: 50000
+eval_freq: 25000
+
+# Environment-specific overrides:
+learn_temp:
+  params:
+    init_targ_entr: -1
+    final_targ_entr: -1
+    entr_decay_factor: 1.0

@@ -11,8 +11,8 @@ import hydra
 from agent import actor, critic, Agent
 from common import utils, dx
 
-class ACAgent(Agent):
-    """Amortized Control agent."""
+class SACMVEAgent(Agent):
+    """SAC-MVE agent."""
     def __init__(
         self, env_name, obs_dim, action_dim, action_range, device,
         dx_cfg,
@@ -132,16 +132,6 @@ class ACAgent(Agent):
         self.train()
         self.last_step = 0
 
-    def in_det_suffix(self):
-        return self.last_step/self.num_train_steps > 1.-self.det_suffix
-
-    @property
-    def alpha(self):
-        if self.in_det_suffix():
-            return torch.FloatTensor([0.]).to(self.device)
-        else:
-            return self.temp.alpha
-
 
     def train(self, training=True):
         self.training = training
@@ -209,7 +199,7 @@ class ACAgent(Agent):
 
         assert rewards.size() == (self.horizon, n_batch)
         assert log_p_us.size() == (self.horizon, n_batch)
-        rewards -= self.alpha.detach() * log_p_us
+        rewards -= self.temp.alpha.detach() * log_p_us
 
         if discount:
             rewards *= self.discount_horizon.unsqueeze(1)
@@ -238,14 +228,14 @@ class ACAgent(Agent):
             _, pi, first_log_p = self.actor(xs)
             actor_Q1, actor_Q2 = self.critic(xs, pi)
             actor_Q = torch.min(actor_Q1, actor_Q2)
-            actor_loss = (self.alpha.detach() * first_log_p - actor_Q).mean()
+            actor_loss = (self.temp.alpha.detach() * first_log_p - actor_Q).mean()
         else:
             # Switch to the model-based updates.
             # i.e., fit to the controller's sequence cost
             rewards, first_log_p, total_log_p_us = self.expand_Q(
                 xs, self.critic, sample=True, discount=True)
             assert total_log_p_us.size() == rewards.size()
-            scale = self.alpha.detach() if self.alpha_scale_kl else 1.
+            scale = self.temp.alpha.detach() if self.alpha_scale_kl else 1.
             actor_loss = ((scale * total_log_p_us - rewards)/(self.horizon)).mean()
 
         logger.log('train_actor/loss', actor_loss, step)
@@ -259,11 +249,9 @@ class ACAgent(Agent):
         self.actor_opt.step()
 
         self.actor.log(logger, step)
+        self.temp.update(first_log_p, logger, step)
 
-        if not self.in_det_suffix():
-            self.temp.update(first_log_p, logger, step)
-
-        logger.log('train_alpha/value', self.alpha, step)
+        logger.log('train_alpha/value', self.temp.alpha, step)
 
 
     # @profile
@@ -281,7 +269,7 @@ class ACAgent(Agent):
 
                 target_Q1, target_Q2 = [
                     Q.squeeze(1) for Q in self.critic_target(xps, target_us)]
-                target_Q = torch.min(target_Q1, target_Q2) - self.alpha.detach() * log_pi
+                target_Q = torch.min(target_Q1, target_Q2) - self.temp.alpha.detach() * log_pi
                 assert target_Q.size() == rs.size()
                 assert target_Q.ndimension() == 1
                 target_Q = rs + not_done * self.discount * target_Q
@@ -289,7 +277,7 @@ class ACAgent(Agent):
             else:
                 target_Q, first_log_p, total_log_p_us = self.expand_Q(
                     xps, self.critic_target, sample=True, discount=True)
-                target_Q = target_Q - self.alpha.detach() * first_log_p
+                target_Q = target_Q - self.temp.alpha.detach() * first_log_p
                 target_Q = rs + not_done * self.discount * target_Q
                 target_Q = target_Q.detach()
 

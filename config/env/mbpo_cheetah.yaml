@@ -1,0 +1,9 @@
+env_name: mbpo_cheetah
+num_train_steps: 5e6
+
+# Environment-specific overrides:
+learn_temp:
+  params:
+    init_targ_entr: -2
+    final_targ_entr: -2
+    entr_decay_factor: 1.0

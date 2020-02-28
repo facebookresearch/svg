@@ -1,0 +1,97 @@
+agent:
+  name: sac
+  class: agent.sac.SACAgent
+  params:
+    obs_dim: ??? # to be specified later
+    action_dim: ??? # to be specified later
+    action_range: ??? # to be specified later
+    device: ${device}
+    planet_cfg: null # TODO: Fill in later
+    critic_cfg: ${double_q_critic}
+    actor_cfg: ${normal_actor}
+    # actor_cfg: ${opt_maxq_actor}
+    discount: 0.99
+    init_temperature: 0.1
+    alpha_lr: 1e-4
+    alpha_betas: [0.9, 0.999]
+    actor_lr: 1e-4
+    actor_betas: [0.9, 0.999]
+    actor_update_frequency: 1
+    critic_lr: 1e-4
+    critic_betas: [0.9, 0.999]
+    critic_tau: 0.005
+    critic_target_update_frequency: 2
+    batch_size: 1024
+    
+double_q_critic:
+  class: agent.critic.DoubleQCritic
+  params:
+    obs_dim: ${agent.params.obs_dim}
+    action_dim: ${agent.params.action_dim}
+    hidden_dim: 1024
+    hidden_depth: 2
+
+vanilla_actor:
+  class: agent.actor.VanillaActor
+  params:
+    obs_dim: ${agent.params.obs_dim}
+    action_dim: ${agent.params.action_dim}
+    hidden_depth: 2
+    hidden_dim: 1024
+    log_std_bounds: [-5, 2]
+    
+normal_actor:
+  class: agent.actor.NormalActor
+  params:
+    obs_dim: ${agent.params.obs_dim}
+    action_dim: ${agent.params.action_dim}
+    hidden_depth: 2
+    hidden_dim: 1024
+    log_std_bounds: [-5, 2]
+    
+multivariate_normal_actor:
+  class: agent.actor.MultivariateNormalActor
+  params:
+    obs_dim: ${agent.params.obs_dim}
+    action_dim: ${agent.params.action_dim}
+    hidden_depth: 2
+    hidden_dim: 1024
+
+# Solve the control optimization problem with gradient descent.
+opt_maxq_actor:
+  class: agent.actor.OptActor
+  params:
+    obs_dim: ${agent.params.obs_dim}
+    action_dim: ${agent.params.action_dim}
+    hidden_dim: 256
+    hidden_depth: 1
+    log_std_bounds: [-10, 2]
+    horizon_length: 1 # 1 is model-free Q learning, more is a model-based policy
+    opt_cfg: ${dcem_opt}
+
+gd_opt:
+  class: agent.actor.GDOpt
+  params:
+    obs_dim: ${agent.params.obs_dim}
+    action_dim: ${agent.params.action_dim}
+    init_net_type: 'mlp' # null, 'mlp', or 'rnn'
+    hidden_dim: ${opt_maxq_actor.params.hidden_dim}
+    hidden_depth: ${opt_maxq_actor.params.hidden_depth}
+    n_latent: 10 # Dimension of latent domain. If 0, use the full domain
+    n_iter: 0 # Number of inner iterations
+    lr: 0.1
+
+dcem_opt:
+  class: agent.actor.DCEMOpt
+  params:
+    obs_dim: ${agent.params.obs_dim}
+    action_dim: ${agent.params.action_dim}
+    init_net_type: 'mlp' # null, 'mlp', or 'rnn'
+    hidden_dim: ${opt_maxq_actor.params.hidden_dim}
+    hidden_depth: ${opt_maxq_actor.params.hidden_depth}
+    n_latent: 10 # Dimension of latent domain. If 0, use the full domain
+    n_iter: 3
+    n_samples: 10
+    n_elite: 5
+    tau: 1.0
+    normalize: True

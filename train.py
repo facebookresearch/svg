@@ -80,7 +80,7 @@ class Workspace(object):
             episode_reward = 0
             while not done:
                 with utils.eval_mode(self.agent):
-                    if self.replay_buffer.mean_obs_np is not None:
+                    if self.cfg.renormalize:
                         obs_norm = (obs - self.replay_buffer.mean_obs_np) / \
                           self.replay_buffer.std_obs_np
                         action = self.agent.act(obs_norm, sample=False)
@@ -144,10 +144,9 @@ class Workspace(object):
                 self.episode_step = 0
                 self.episode += 1
 
+                self.replay_buffer.save(self.replay_dir)
                 if self.cfg.save_latest:
                     self.save(tag='latest')
-
-                self.replay_buffer.save(self.replay_dir)
 
             if self.cfg.renormalize and self.replay_buffer.idx > 0 and \
                 self.step % self.cfg.renormalize_freq == 0 and \
@@ -159,7 +158,7 @@ class Workspace(object):
                 action = self.env.action_space.sample()
             else:
                 with utils.eval_mode(self.agent):
-                    if self.replay_buffer.mean_obs_np is not None:
+                    if self.cfg.renormalize:
                         obs_norm = (obs - self.replay_buffer.mean_obs_np) / \
                           self.replay_buffer.std_obs_np
                         action = self.agent.act(obs_norm, sample=True)
@@ -207,8 +206,6 @@ class Workspace(object):
 
     def __getstate__(self):
         d = copy.copy(self.__dict__)
-        self.mean_obs_np = self.replay_buffer.mean_obs_np
-        self.std_obs_np = self.replay_buffer.std_obs_np
         del d['replay_buffer'], d['logger'], d['env']
         return d
 
@@ -228,13 +225,11 @@ class Workspace(object):
 
         # Re-initialize an empty replay buffer.
         self.replay_buffer = ReplayBuffer(self.env.observation_space.shape,
-                                            self.env.action_space.shape,
-                                            int(self.cfg.replay_buffer_capacity),
-                                            self.device)
+                                          self.env.action_space.shape,
+                                          int(self.cfg.replay_buffer_capacity),
+                                          self.device)
         if os.path.exists(self.replay_dir):
             self.replay_buffer.load(self.replay_dir)
-        self.replay_buffer.mean_obs_np = self.mean_obs_np
-        self.replay_buffer.std_obs_np = self.std_obs_np
 
 
 @hydra.main(config_path='config/train.yaml', strict=True)

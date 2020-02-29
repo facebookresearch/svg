@@ -63,17 +63,12 @@ class AverageMeter(object):
 
 class MetersGroup(object):
     def __init__(self, file_name, formating):
-        self._csv_file_name = self._prepare_file(file_name, 'csv')
+        self._csv_file_name = file_name + '.csv'
         self._formating = formating
         self._meters = defaultdict(AverageMeter)
-        self._csv_file = open(self._csv_file_name, 'w')
+        self._first_write = not os.path.exists(self._csv_file_name)
+        self._csv_file = open(self._csv_file_name, 'a')
         self._csv_writer = None
-
-    def _prepare_file(self, prefix, suffix):
-        file_name = f'{prefix}.{suffix}'
-        if os.path.exists(file_name):
-            os.remove(file_name)
-        return file_name
 
     def log(self, key, value, n=1):
         self._meters[key].update(value, n)
@@ -94,7 +89,8 @@ class MetersGroup(object):
             self._csv_writer = csv.DictWriter(self._csv_file,
                                               fieldnames=sorted(data.keys()),
                                               restval=0.0)
-            self._csv_writer.writeheader()
+            if self._first_write:
+                self._csv_writer.writeheader()
         self._csv_writer.writerow(data)
         self._csv_file.flush()
 

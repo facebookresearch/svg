@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import os
 
+import pickle as pkl
+
 from common import utils
 
 class ReplayBuffer(object):
@@ -24,7 +26,8 @@ class ReplayBuffer(object):
         self.last_save = 0
         self.full = False
 
-        self.mean_obs_np = self.std_obs_np = None
+        self.mean_obs_np = 0.
+        self.std_obs_np = 1.
         self.welford = utils.Welford()
 
     def __len__(self):
@@ -42,24 +45,19 @@ class ReplayBuffer(object):
         self.next_obses = (self.next_obses - self.mean_obs_np) / self.std_obs_np
 
     def renormalize_obs(self):
-        if self.mean_obs_np is not None:
-            self.obses = (self.obses * self.std_obs_np) + self.mean_obs_np
-            self.next_obses = (self.next_obses * self.std_obs_np) + self.mean_obs_np
+        self.obses = (self.obses * self.std_obs_np) + self.mean_obs_np
+        self.next_obses = (self.next_obses * self.std_obs_np) + self.mean_obs_np
         self.normalize_obs()
 
     def get_obs_stats(self):
-        if self.mean_obs_np is None:
-            return None, None
-        else:
-            obs_mean = torch.from_numpy(self.mean_obs_np).to(self.device).float()
-            obs_std = torch.from_numpy(self.std_obs_np).to(self.device).float()
-            return obs_mean, obs_std
+        obs_mean = torch.from_numpy(self.mean_obs_np).to(self.device).float()
+        obs_std = torch.from_numpy(self.std_obs_np).to(self.device).float()
+        return obs_mean, obs_std
 
     def add(self, obs, action, reward, next_obs, done, done_no_max):
         self.welford.add_data(obs)
-        if self.mean_obs_np is not None:
-            obs = (obs - self.mean_obs_np) / self.std_obs_np
-            next_obs = (next_obs - self.mean_obs_np) / self.std_obs_np
+        obs = (obs - self.mean_obs_np) / self.std_obs_np
+        next_obs = (next_obs - self.mean_obs_np) / self.std_obs_np
         np.copyto(self.obses[self.idx], obs)
         np.copyto(self.actions[self.idx], action)
         np.copyto(self.rewards[self.idx], reward)
@@ -126,29 +124,45 @@ class ReplayBuffer(object):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         path = os.path.join(save_dir, '%d_%d.pt' % (self.last_save, self.idx))
+
+        # Save unnormalized obs to disk.
         payload = [
-            self.obses[self.last_save:self.idx],
-            self.next_obses[self.last_save:self.idx],
+            self.obses[self.last_save:self.idx] * self.std_obs_np + self.mean_obs_np,
+            self.next_obses[self.last_save:self.idx] * self.std_obs_np + self.mean_obs_np,
             self.actions[self.last_save:self.idx],
             self.rewards[self.last_save:self.idx],
-            self.not_dones[self.last_save:self.idx]
+            self.not_dones[self.last_save:self.idx],
+            self.not_dones_no_max[self.last_save:self.idx],
         ]
         self.last_save = self.idx
         torch.save(payload, path)
 
+        path = os.path.join(save_dir, 'stats.pkl')
+        payload = (self.mean_obs_np, self.std_obs_np, self.welford)
+        with open(path, 'wb') as f:
+            pkl.dump(payload, f)
+
     def load(self, save_dir):
+        path = os.path.join(save_dir, 'stats.pkl')
+        with open(path, 'rb') as f:
+            self.mean_obs_np, self.std_obs_np, self.welford = pkl.load(f)
+
         chunks = os.listdir(save_dir)
-        chucks = sorted(chunks, key=lambda x: int(x.split('_')[0]))
-        for chunk in chucks:
+        chunks = filter(lambda fname: 'stats' not in fname, chunks)
+        chunks = sorted(chunks, key=lambda x: int(x.split('_')[0]))
+
+        # Load and re-normalize.
+        for chunk in chunks:
             start, end = [int(x) for x in chunk.split('.')[0].split('_')]
             path = os.path.join(save_dir, chunk)
             payload = torch.load(path)
             assert self.idx == start
-            self.obses[start:end] = payload[0]
-            self.next_obses[start:end] = payload[1]
+            self.obses[start:end] = (payload[0] - self.mean_obs_np) / self.std_obs_np
+            self.next_obses[start:end] = (payload[1] - self.mean_obs_np) / self.std_obs_np
             self.actions[start:end] = payload[2]
             self.rewards[start:end] = payload[3]
             self.not_dones[start:end] = payload[4]
+            self.not_dones_no_max[start:end] = payload[5]
             self.idx = end
 
         self.last_save = self.idx

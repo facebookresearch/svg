@@ -25,6 +25,7 @@ agent:
     actor_num_sample: 1
     actor_clip_grad_norm: 5.0
     actor_mve: true
+    actor_detach_rho: true
 
     critic_cfg: ${double_q_critic}
     critic_lr: 1e-4

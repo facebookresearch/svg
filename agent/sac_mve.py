@@ -24,6 +24,7 @@ class SACMVEAgent(Agent):
         actor_update_freq, actor_num_sample,
         actor_clip_grad_norm,
         actor_mve,
+        actor_detach_rho,
         critic_cfg, critic_lr, critic_tau,
         critic_target_update_freq,
         critic_clip_grad_norm,
@@ -103,6 +104,7 @@ class SACMVEAgent(Agent):
         self.actor_num_sample = actor_num_sample
         self.actor_clip_grad_norm = actor_clip_grad_norm
         self.actor_mve = actor_mve
+        self.actor_detach_rho = actor_detach_rho
 
         # optional critic
         self.critic = None
@@ -174,7 +176,8 @@ class SACMVEAgent(Agent):
     def expand_Q(self, xs, critic, sample=True, discount=False):
         assert xs.dim() == 2
         n_batch = xs.size(0)
-        us, log_p_us, pred_obs = self.dx.unroll_policy(xs, self.actor, sample=sample)
+        us, log_p_us, pred_obs = self.dx.unroll_policy(
+            xs, self.actor, sample=sample, detach_xt=self.actor_detach_rho)
 
         all_obs = torch.cat((xs.unsqueeze(0), pred_obs), dim=0)
         xu = torch.cat((all_obs, us), dim=2)

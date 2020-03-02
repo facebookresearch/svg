@@ -21,8 +21,6 @@ class SACMVEAgent(Agent):
         temp_cfg,
         actor_cfg,
         actor_lr, actor_betas,
-        alpha_scale_kl,
-        anneal_policy_std, policy_std_decay, policy_init_log_std_bounds,
         actor_update_freq, actor_num_sample,
         actor_clip_grad_norm,
         actor_mve,
@@ -78,11 +76,6 @@ class SACMVEAgent(Agent):
         self.act_with_horizon = act_with_horizon
 
         self.warmup_steps = warmup_steps
-
-        self.alpha_scale_kl = alpha_scale_kl
-        self.anneal_policy_std = anneal_policy_std
-        self.policy_std_decay = policy_std_decay
-        self.policy_init_log_std_bounds = policy_init_log_std_bounds
 
         self.temp = hydra.utils.instantiate(temp_cfg)
 
@@ -215,13 +208,6 @@ class SACMVEAgent(Agent):
         assert xs.ndimension() == 2
         n_batch, _ = xs.size()
 
-        if self.anneal_policy_std:
-            max_steps = float(self.num_train_steps)
-            beta = (1.-step/max_steps)**self.policy_std_decay
-            init_min_log_std, init_max_log_std = self.policy_init_log_std_bounds
-            max_log_std = (init_max_log_std - init_min_log_std)*beta +init_min_log_std
-            self.actor.log_std_bounds = (init_min_log_std, max_log_std)
-
         if step < self.warmup_steps or self.horizon == 0 or not self.actor_mve:
             # Do vanilla SAC updates while the model warms up.
             # i.e., fit to just the Q function
@@ -235,8 +221,8 @@ class SACMVEAgent(Agent):
             rewards, first_log_p, total_log_p_us = self.expand_Q(
                 xs, self.critic, sample=True, discount=True)
             assert total_log_p_us.size() == rewards.size()
-            scale = self.temp.alpha.detach() if self.alpha_scale_kl else 1.
-            actor_loss = ((scale * total_log_p_us - rewards)/(self.horizon)).mean()
+            alpha_det = self.temp.alpha.detach()
+            actor_loss = ((alpha_det * total_log_p_us - rewards)/self.horizon).mean()
 
         logger.log('train_actor/loss', actor_loss, step)
         logger.log('train_actor/entropy', -first_log_p.mean(), step)

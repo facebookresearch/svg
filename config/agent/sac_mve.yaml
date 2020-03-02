@@ -18,11 +18,6 @@ agent:
 
     temp_cfg: ${learn_temp}
 
-    alpha_scale_kl: true
-    anneal_policy_std: false
-    policy_std_decay: 5.
-    policy_init_log_std_bounds: [-5, 2]
-
     actor_cfg: ${normal_actor}
     actor_lr: 1e-4
     actor_betas: [0.9, 0.999]
@@ -117,20 +112,3 @@ learn_temp:
     only_decrease_alpha: false
     lr: 5e-4
     device: ${device}
-
-# exp_temp:
-#   class: common.temp.ExpTemp
-#   params:
-#     init_temp: 0.1
-#     max_steps: ${num_train_steps}
-#     temp_decay: 5.
-#     min_temp: 1e-2
-#     device: ${device}
-
-# step_temp:
-#   class: common.temp.StepTemp
-#   params:
-#     num_train_steps: ${num_train_steps}
-#     intervals: [0, 5e3]
-#     temps: [2e-1, 7e-2]
-#     device: ${device}

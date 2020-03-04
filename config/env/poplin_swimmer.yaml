@@ -1,0 +1,9 @@
+env_name: gym_fswimmer
+num_train_steps: 5e4
+
+# Environment-specific overrides:
+learn_temp:
+  params:
+    init_targ_entr: -1.
+    final_targ_entr: -8
+    entr_decay_factor: 0.5

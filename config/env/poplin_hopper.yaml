@@ -1,0 +1,9 @@
+env_name: gym_hopper
+num_train_steps: 2e5
+
+# Environment-specific overrides:
+learn_temp:
+  params:
+    init_targ_entr: 0
+    final_targ_entr: 0
+    entr_decay_factor: 0.

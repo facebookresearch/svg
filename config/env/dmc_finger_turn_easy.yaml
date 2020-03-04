@@ -1,0 +1,2 @@
+env_name: finger_turn_easy
+num_train_steps: 1e6

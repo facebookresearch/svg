@@ -220,6 +220,7 @@ def make_norm_env(cfg):
         def set_seed(seed):
             return env.env.seed(seed)
     else:
+        assert cfg.env_name.startswith('dmc_')
         env = dmc.make(cfg)
 
         def set_seed(seed):

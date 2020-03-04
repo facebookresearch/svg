@@ -1,0 +1,2 @@
+env_name: dmc_walker_walk
+num_train_steps: 1e6

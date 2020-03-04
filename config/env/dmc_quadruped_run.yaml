@@ -1,0 +1,2 @@
+env_name: quadruped_run
+num_train_steps: 1e6

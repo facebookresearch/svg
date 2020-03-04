@@ -1,0 +1,2 @@
+env_name: fish_swim
+num_train_steps: 1e6

@@ -1,0 +1,2 @@
+env_name: reacher_hard
+num_train_steps: 1e6

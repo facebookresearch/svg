@@ -1,2 +1,2 @@
-env_name: swimmer_swimmer15
+env_name: dmc_swimmer_swimmer15
 num_train_steps: 1e6

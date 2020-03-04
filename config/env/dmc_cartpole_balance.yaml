@@ -1,2 +1,2 @@
-env_name: cartpole_balance
+env_name: dmc_cartpole_balance
 num_train_steps: 1e6

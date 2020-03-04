@@ -1,2 +1,2 @@
-env_name: humanoid_stand
+env_name: dmc_humanoid_stand
 num_train_steps: 1e6

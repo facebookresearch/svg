@@ -1,2 +1,2 @@
-env_name: ball_in_cup_catch
+env_name: dmc_ball_in_cup_catch
 num_train_steps: 1e6

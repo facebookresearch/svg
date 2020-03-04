@@ -1,2 +1,2 @@
-env_name: quadruped_run
+env_name: dmc_quadruped_run
 num_train_steps: 1e6

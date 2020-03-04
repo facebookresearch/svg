@@ -1,2 +1,2 @@
-env_name: cheetah_run
+env_name: dmc_cheetah_run
 num_train_steps: 1e6

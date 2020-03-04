@@ -1,2 +1,2 @@
-env_name: cartpole_swingup_sparse
+env_name: dmc_cartpole_swingup_sparse
 num_train_steps: 1e6

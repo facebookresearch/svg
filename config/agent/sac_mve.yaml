@@ -107,8 +107,8 @@ learn_temp:
   params:
     init_temp: 5
     max_steps: ${num_train_steps}
-    init_targ_entr: -1.
-    final_targ_entr: -1.
+    init_targ_entr: -${agent.params.action_dim}
+    final_targ_entr: -${agent.params.action_dim}
     entr_decay_factor: 0.
     only_decrease_alpha: false
     lr: 5e-4

@@ -22,7 +22,7 @@ agent:
     critic_tau: 0.005
     critic_target_update_frequency: 2
     batch_size: 1024
-    
+
 double_q_critic:
   class: agent.critic.DoubleQCritic
   params:
@@ -39,7 +39,7 @@ vanilla_actor:
     hidden_depth: 2
     hidden_dim: 1024
     log_std_bounds: [-5, 2]
-    
+
 normal_actor:
   class: agent.actor.NormalActor
   params:
@@ -48,7 +48,7 @@ normal_actor:
     hidden_depth: 2
     hidden_dim: 1024
     log_std_bounds: [-5, 2]
-    
+
 multivariate_normal_actor:
   class: agent.actor.MultivariateNormalActor
   params:

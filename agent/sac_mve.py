@@ -14,10 +14,12 @@ from common import utils, dx
 class SACMVEAgent(Agent):
     """SAC-MVE agent."""
     def __init__(
-        self, env_name, obs_dim, action_dim, action_range, device,
+        self, env_name, obs_dim, latent_obs_dim, action_dim, action_range,
+        device,
         dx_cfg,
         num_train_steps,
         train_with_policy_mean, train_action_noise,
+        obs_encoder_cfg,
         temp_cfg,
         actor_cfg,
         actor_lr, actor_betas,
@@ -77,6 +79,12 @@ class SACMVEAgent(Agent):
         self.act_with_horizon = act_with_horizon
 
         self.warmup_steps = warmup_steps
+
+        if obs_encoder_cfg is not None:
+            import ipdb; ipdb.set_trace()
+            self.obs_encoder = TODO
+        else:
+            self.obs_encoder = None
 
         self.temp = hydra.utils.instantiate(temp_cfg)
 

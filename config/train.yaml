@@ -1,6 +1,7 @@
 defaults:
     - env: mbpo_ant
     - hydra/launcher: submitit
+    - obs_enc: proprio_identity # proprio_MLP, pixel_CNN
 
 experiment: test
 
@@ -48,6 +49,7 @@ agent:
   params:
     env_name: ${env_name}
     obs_dim: ${obs_dim}
+    latent_obs_dim: ${latent_obs_dim}
     action_dim: ${action_dim}
     action_range: ${action_range}
     device: ${device}
@@ -57,6 +59,7 @@ agent:
     train_with_policy_mean: false
     train_action_noise: 0.0
 
+    obs_encoder_cfg: ${obs_encoder_cfg}
     temp_cfg: ${learn_temp}
 
     actor_cfg: ${normal_actor}
@@ -110,7 +113,7 @@ dx:
   class: common.dx.SeqDx
   params:
     env_name: ${env_name}
-    obs_dim: ${obs_dim}
+    obs_dim: ${latent_obs_dim}
     action_dim: ${action_dim}
     action_range: ${action_range}
     horizon: ${agent.params.horizon}
@@ -129,7 +132,7 @@ dx:
 normal_actor:
   class: agent.actor.NormalActor
   params:
-    obs_dim: ${obs_dim}
+    obs_dim: ${latent_obs_dim}
     action_dim: ${action_dim}
     hidden_dim: ${model_free_hidden_dim}
     hidden_depth: ${model_free_hidden_depth}
@@ -138,7 +141,7 @@ normal_actor:
 double_q_critic:
   class: agent.critic.DoubleQCritic
   params:
-    obs_dim: ${obs_dim}
+    obs_dim: ${latent_obs_dim}
     action_dim: ${action_dim}
     hidden_dim: ${model_free_hidden_dim}
     hidden_depth: ${model_free_hidden_depth}

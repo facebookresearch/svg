@@ -43,9 +43,9 @@ class Workspace(object):
         self.episode_reward = 0
         self.done = False
 
-        cfg.agent.params.obs_dim = int(self.env.observation_space.shape[0])
-        cfg.agent.params.action_dim = self.env.action_space.shape[0]
-        cfg.agent.params.action_range = [
+        cfg.obs_dim = int(self.env.observation_space.shape[0])
+        cfg.action_dim = self.env.action_space.shape[0]
+        cfg.action_range = [
             float(self.env.action_space.low.min()),
             float(self.env.action_space.high.max())
         ]

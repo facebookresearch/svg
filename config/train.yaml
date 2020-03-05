@@ -60,6 +60,7 @@ agent:
     train_action_noise: 0.0
 
     obs_encoder_cfg: ${obs_encoder_cfg}
+    obs_encoder_lr: 5e-4
     temp_cfg: ${learn_temp}
 
     actor_cfg: ${normal_actor}

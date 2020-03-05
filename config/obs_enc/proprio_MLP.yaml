@@ -1,0 +1,9 @@
+latent_obs_dim: 256
+obs_encoder_cfg:
+  name: EncoderMLP
+  class: common.utils.MLP
+  params:
+    input_dim: ${obs_dim}
+    hidden_dim: 512
+    output_dim: ${latent_obs_dim}
+    hidden_depth: 2

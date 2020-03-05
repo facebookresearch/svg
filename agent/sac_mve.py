@@ -19,7 +19,7 @@ class SACMVEAgent(Agent):
         dx_cfg,
         num_train_steps,
         train_with_policy_mean, train_action_noise,
-        obs_encoder_cfg,
+        obs_encoder_cfg, obs_encoder_lr,
         temp_cfg,
         actor_cfg,
         actor_lr, actor_betas,
@@ -81,8 +81,9 @@ class SACMVEAgent(Agent):
         self.warmup_steps = warmup_steps
 
         if obs_encoder_cfg is not None:
-            import ipdb; ipdb.set_trace()
-            self.obs_encoder = TODO
+            self.obs_encoder = hydra.utils.instantiate(obs_encoder_cfg).to(self.device)
+            self.obs_encoder_opt = torch.optim.Adam(
+                self.obs_encoder.parameters(), lr=obs_encoder_lr)
         else:
             self.obs_encoder = None
 
@@ -91,12 +92,12 @@ class SACMVEAgent(Agent):
         self.dx = hydra.utils.instantiate(dx_cfg).to(self.device)
 
         self.rew = utils.mlp(
-            obs_dim+action_dim, rew_hidden_dim, 1, rew_hidden_depth
+            latent_obs_dim+action_dim, rew_hidden_dim, 1, rew_hidden_depth
         ).to(self.device)
         self.rew_opt = torch.optim.Adam(self.rew.parameters(), lr=rew_lr)
 
         self.done = utils.mlp(
-            obs_dim+action_dim, done_hidden_dim, 1, done_hidden_depth
+            latent_obs_dim+action_dim, done_hidden_dim, 1, done_hidden_depth
         ).to(self.device)
         self.done_ctrl_accum = done_ctrl_accum
         self.done_opt = torch.optim.Adam(self.done.parameters(), lr=done_lr)
@@ -153,22 +154,23 @@ class SACMVEAgent(Agent):
     def act(self, obs, sample=False):
         obs = torch.FloatTensor(obs).to(self.device)
         obs = obs.unsqueeze(dim=0)
+        latent_obs = self.obs_encoder(obs) if self.obs_encoder is not None else obs
 
         if not sample or self.train_with_policy_mean:
             # Assume we never act with the horion if we aren't sampling
             # TODO: Could add an option for acting with the horizon and not sampling
-            action, _, _ = self.actor(obs, compute_pi=False, compute_log_pi=False)
+            action, _, _ = self.actor(latent_obs, compute_pi=False, compute_log_pi=False)
         else:
             if not self.act_with_horizon or self.last_step < self.warmup_steps:
                 with torch.no_grad():
-                    _, action, _ = self.actor(obs, compute_log_pi=False)
+                    _, action, _ = self.actor(latent_obs, compute_log_pi=False)
             else:
                 if len(self.next_actions) > 0:
                     action = self.next_actions.pop(0).squeeze(0)
                 else:
                     with torch.no_grad():
                         actions, _, _ = self.dx.unroll_policy(
-                            obs, self.actor, sample=True)
+                            latent_obs, self.actor, sample=True)
                     action = actions[0]
                     actions = list(actions.split(split_size=1))
                     self.next_actions = actions[1:]
@@ -289,11 +291,16 @@ class SACMVEAgent(Agent):
         logger.log('train_critic/value', current_Q.mean(), step)
 
         self.critic_opt.zero_grad()
+        if self.obs_encoder is not None:
+            self.obs_encoder_opt.zero_grad()
         Q_loss.backward()
         if self.critic_clip_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
                 self.critic.parameters(), self.critic_clip_grad_norm)
         self.critic_opt.step()
+        if self.obs_encoder is not None:
+            # Update the encoder for value learning
+            self.obs_encoder_opt.step()
 
         self.critic.log(logger, step)
 
@@ -311,30 +318,37 @@ class SACMVEAgent(Agent):
                 obses, actions, rewards = replay_buffer.sample_multistep(
                     self.seq_batch_size, self.seq_train_length)
                 assert obses.ndimension() == 3
-                self.dx.update_step(obses, actions, rewards, logger, step)
+                latent_obses = self.obs_encoder(obses) if self.obs_encoder is not None \
+                  else obses
+                self.dx.update_step(latent_obses, actions, rewards, logger, step)
 
         n_updates = 1 if step < self.warmup_steps else self.model_free_update_repeat
         for i in range(n_updates):
             obs, action, reward, next_obs, not_done, not_done_no_max = \
               replay_buffer.sample(self.step_batch_size)
+            latent_obs = self.obs_encoder(obs) if self.obs_encoder is not None else obs
+            next_latent_obs = self.obs_encoder(next_obs) if self.obs_encoder is not None \
+              else next_obs
 
             if self.critic is not None:
                 self.update_critic(
-                    obs, next_obs, action, reward, not_done_no_max, logger, step
+                    latent_obs, next_latent_obs,
+                    action, reward, not_done_no_max, logger, step
                 )
+                latent_obs = latent_obs.detach()
 
             if step % self.actor_update_freq == 0:
                 if self.actor_num_sample > 1:
-                    obs_actor = obs.repeat(1, self.actor_num_sample) \
+                    latent_obs_actor = latent_obs.repeat(1, self.actor_num_sample) \
                       .view(self.step_batch_size*self.actor_num_sample, -1)
                 else:
-                   obs_actor = obs
-                self.update_actor_and_alpha(obs_actor, logger, step)
+                   latent_obs_actor = latent_obs
+                self.update_actor_and_alpha(latent_obs_actor, logger, step)
 
             if self.rew_opt is not None:
-                self.update_rew_step(obs, action, reward, logger, step)
+                self.update_rew_step(latent_obs, action, reward, logger, step)
 
-            self.update_done_step(obs, action, not_done_no_max, logger, step)
+            self.update_done_step(latent_obs, action, not_done_no_max, logger, step)
 
         if self.critic is not None and step % self.critic_target_update_freq == 0:
             utils.soft_update_params(self.critic, self.critic_target, self.critic_tau)

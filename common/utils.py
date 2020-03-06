@@ -226,7 +226,8 @@ def make_norm_env(cfg):
         def set_seed(seed):
             return env.env.env._env.task.random.seed(seed)
 
-        env = FrameStack(env, k=cfg.frame_stack)
+        if cfg.pixels:
+            env = FrameStack(env, k=cfg.frame_stack)
 
     env.set_seed = set_seed
 

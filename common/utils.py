@@ -162,8 +162,8 @@ def make_norm_env(cfg):
 
         env._max_episode_steps = env.env._max_episode_steps
 
-        env.reset_old = env.reset
-        env.reset = lambda: env.reset_old()[0]
+        # env.reset_old = env.reset
+        # env.reset = lambda: env.reset_old()[0]
         def render(mode, height, width, camera_id):
             frame = env.env.render(mode='rgb_array')
             return frame
@@ -224,7 +224,9 @@ def make_norm_env(cfg):
         env = dmc.make(cfg)
 
         def set_seed(seed):
-            return env.env._env.task.random.seed(seed)
+            return env.env.env._env.task.random.seed(seed)
+
+        env = FrameStack(env, k=cfg.frame_stack)
 
     env.set_seed = set_seed
 

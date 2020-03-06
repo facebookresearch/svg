@@ -1,0 +1,13 @@
+pixels: True
+latent_obs_dim: 64
+frame_stack: 3
+
+renormalize: False
+renormalize_freq: 1000
+
+obs_encoder_cfg:
+  name: EncoderCNN
+  class: agent.encoder.EncoderCNN
+  params:
+    frame_stack: ${frame_stack}
+    latent_obs_dim: ${latent_obs_dim}

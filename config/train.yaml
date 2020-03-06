@@ -10,9 +10,6 @@ replay_buffer_capacity: ${num_train_steps}
 
 num_seed_steps: 1000
 
-renormalize: true
-renormalize_freq: 1000
-
 eval_freq: 10000
 num_eval_episodes: 10
 fixed_eval: true

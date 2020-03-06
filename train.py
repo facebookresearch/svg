@@ -54,10 +54,12 @@ class Workspace(object):
         if isinstance(cfg.replay_buffer_capacity, str):
             cfg.replay_buffer_capacity = int(eval(cfg.replay_buffer_capacity))
 
-        self.replay_buffer = ReplayBuffer(self.env.observation_space.shape,
-                                          self.env.action_space.shape,
-                                          int(cfg.replay_buffer_capacity),
-                                          self.device)
+        self.replay_buffer = ReplayBuffer(
+            self.env.observation_space.shape,
+            self.env.action_space.shape,
+            int(cfg.replay_buffer_capacity),
+            self.device
+        )
         self.replay_dir = os.path.join(self.work_dir, 'replay')
 
         self.video_recorder = VideoRecorder(

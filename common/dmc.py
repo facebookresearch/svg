@@ -13,11 +13,16 @@ def make(cfg):
         domain_name = toks[0]
         task_name = '_'.join(toks[1:])
 
-    env = dmc2gym.make(domain_name=domain_name,
-                       task_name=task_name,
-                       seed=cfg.seed,
-                       visualize_reward=True,
-                       frame_skip=action_repeat)
+    env = dmc2gym.make(
+        domain_name=domain_name,
+        task_name=task_name,
+        seed=cfg.seed,
+        visualize_reward=False,
+        frame_skip=action_repeat,
+        from_pixels=cfg.pixels,
+        height=64,
+        width=64,
+    )
 
     env.seed(cfg.seed)
     assert env.action_space.low.min() >= -1

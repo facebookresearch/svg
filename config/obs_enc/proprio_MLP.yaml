@@ -1,4 +1,9 @@
-latent_obs_dim: 256
+pixels: False
+latent_obs_dim: 64
+
+renormalize: False
+renormalize_freq: 1000
+
 obs_encoder_cfg:
   name: EncoderMLP
   class: common.utils.MLP

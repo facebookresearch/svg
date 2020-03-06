@@ -32,5 +32,5 @@ class EncoderCNN(nn.Module):
             h = torch.relu(self.convs[i](h))
 
         h = h.view(n_batch, -1)
-        h = self.fc(h)
+        h = torch.tanh(self.fc(h))
         return h

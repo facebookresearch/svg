@@ -147,7 +147,7 @@ double_q_critic:
 learn_temp:
   class: common.temp.LearnTemp
   params:
-    init_temp: 5
+    init_temp: 1
     max_steps: ${num_train_steps}
     init_targ_entr: -${action_dim}
     final_targ_entr: -${action_dim}

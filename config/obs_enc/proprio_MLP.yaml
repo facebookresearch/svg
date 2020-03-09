@@ -12,3 +12,4 @@ obs_encoder_cfg:
     hidden_dim: 512
     output_dim: ${latent_obs_dim}
     hidden_depth: 2
+    output_mod: tanh

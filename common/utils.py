@@ -396,6 +396,11 @@ class MLP(nn.Module):
                  hidden_depth,
                  output_mod=None):
         super().__init__()
+        if isinstance(output_mod, str):
+            if output_mod == 'tanh':
+                output_mod = torch.nn.Tanh()
+            else:
+                assert False
         self.trunk = mlp(input_dim, hidden_dim, output_dim, hidden_depth,
                          output_mod)
         self.apply(weight_init)

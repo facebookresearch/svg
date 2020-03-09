@@ -58,6 +58,9 @@ agent:
 
     obs_encoder_cfg: ${obs_encoder_cfg}
     obs_encoder_lr: 5e-4
+    obs_encode_latent_penalty: 1e-4
+    obs_encode_latent_step_penalty: 1e-4
+
     temp_cfg: ${learn_temp}
 
     actor_cfg: ${normal_actor}
@@ -105,6 +108,7 @@ agent:
     warmup_steps: 0 # Auto-set if null
 
     det_suffix: 0.0
+
 
 dx:
   name: dx

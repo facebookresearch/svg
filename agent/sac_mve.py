@@ -20,6 +20,7 @@ class SACMVEAgent(Agent):
         num_train_steps,
         train_with_policy_mean, train_action_noise,
         obs_encoder_cfg, obs_encoder_lr,
+        obs_encode_latent_penalty, obs_encode_latent_step_penalty,
         temp_cfg,
         actor_cfg,
         actor_lr, actor_betas,
@@ -86,6 +87,9 @@ class SACMVEAgent(Agent):
                 self.obs_encoder.parameters(), lr=obs_encoder_lr)
         else:
             self.obs_encoder = None
+
+        self.obs_encode_latent_penalty = obs_encode_latent_penalty
+        self.obs_encode_latent_step_penalty = obs_encode_latent_step_penalty
 
         self.temp = hydra.utils.instantiate(temp_cfg)
 
@@ -290,6 +294,13 @@ class SACMVEAgent(Agent):
         current_Q = torch.min(current_Q1, current_Q2)
         logger.log('train_critic/value', current_Q.mean(), step)
 
+        if self.obs_encoder is not None:
+            if self.obs_encode_latent_penalty:
+                Q_loss += self.obs_encode_latent_penalty*xs.pow(2).mean()
+
+            if self.obs_encode_latent_step_penalty:
+                Q_loss += self.obs_encode_latent_step_penalty*(xs-xps).pow(2).mean()
+
         self.critic_opt.zero_grad()
         if self.obs_encoder is not None:
             self.obs_encoder_opt.zero_grad()
@@ -326,9 +337,13 @@ class SACMVEAgent(Agent):
         for i in range(n_updates):
             obs, action, reward, next_obs, not_done, not_done_no_max = \
               replay_buffer.sample(self.step_batch_size)
-            latent_obs = self.obs_encoder(obs) if self.obs_encoder is not None else obs
-            next_latent_obs = self.obs_encoder(next_obs) if self.obs_encoder is not None \
-              else next_obs
+
+            if self.obs_encoder is not None:
+                latent_obs = self.obs_encoder(obs)
+                next_latent_obs = self.obs_encoder(next_obs)
+            else:
+                latent_obs = obs
+                next_latent_obs = next_obs
 
             if self.critic is not None:
                 self.update_critic(

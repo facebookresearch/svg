@@ -59,9 +59,9 @@ agent:
     obs_encoder_cfg: ${obs_encoder_cfg}
     obs_decoder_cfg: ${obs_decoder_cfg}
     obs_ae_lr: 5e-4
-    obs_latent_penalty: 1e-4
-    obs_latent_step_penalty: 1e-4
-    obs_recon_penalty: 1e-4
+    obs_latent_penalty: 0.
+    obs_latent_step_penalty: 0.
+    obs_recon_penalty: 0.
 
     temp_cfg: ${learn_temp}
 

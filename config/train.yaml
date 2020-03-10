@@ -57,9 +57,11 @@ agent:
     train_action_noise: 0.0
 
     obs_encoder_cfg: ${obs_encoder_cfg}
-    obs_encoder_lr: 5e-4
-    obs_encode_latent_penalty: 1e-4
-    obs_encode_latent_step_penalty: 1e-4
+    obs_decoder_cfg: ${obs_decoder_cfg}
+    obs_ae_lr: 5e-4
+    obs_latent_penalty: 1e-4
+    obs_latent_step_penalty: 1e-4
+    obs_recon_penalty: 1e-4
 
     temp_cfg: ${learn_temp}
 

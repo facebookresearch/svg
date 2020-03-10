@@ -19,8 +19,8 @@ class SACMVEAgent(Agent):
         dx_cfg,
         num_train_steps,
         train_with_policy_mean, train_action_noise,
-        obs_encoder_cfg, obs_encoder_lr,
-        obs_encode_latent_penalty, obs_encode_latent_step_penalty,
+        obs_encoder_cfg, obs_decoder_cfg, obs_ae_lr,
+        obs_latent_penalty, obs_latent_step_penalty, obs_recon_penalty,
         temp_cfg,
         actor_cfg,
         actor_lr, actor_betas,
@@ -82,14 +82,17 @@ class SACMVEAgent(Agent):
         self.warmup_steps = warmup_steps
 
         if obs_encoder_cfg is not None:
+            assert obs_decoder_cfg is not None
             self.obs_encoder = hydra.utils.instantiate(obs_encoder_cfg).to(self.device)
-            self.obs_encoder_opt = torch.optim.Adam(
-                self.obs_encoder.parameters(), lr=obs_encoder_lr)
+            self.obs_decoder = hydra.utils.instantiate(obs_decoder_cfg).to(self.device)
+            params = utils.get_params([self.obs_encoder, self.obs_decoder])
+            self.obs_ae_opt = torch.optim.Adam(params, lr=obs_ae_lr)
         else:
-            self.obs_encoder = None
+            self.obs_encoder = self.obs_decoder = None
 
-        self.obs_encode_latent_penalty = obs_encode_latent_penalty
-        self.obs_encode_latent_step_penalty = obs_encode_latent_step_penalty
+        self.obs_latent_penalty = obs_latent_penalty
+        self.obs_latent_step_penalty = obs_latent_step_penalty
+        self.obs_recon_penalty = obs_recon_penalty
 
         self.temp = hydra.utils.instantiate(temp_cfg)
 
@@ -258,7 +261,7 @@ class SACMVEAgent(Agent):
 
 
     # @profile
-    def update_critic(self, xs, xps, us, rs, not_done, logger, step):
+    def update_critic(self, orig_xs, xs, xps, us, rs, not_done, logger, step):
         assert xs.ndimension() == 2
         n_batch, _ = xs.size()
         rs = rs.squeeze()
@@ -295,15 +298,21 @@ class SACMVEAgent(Agent):
         logger.log('train_critic/value', current_Q.mean(), step)
 
         if self.obs_encoder is not None:
-            if self.obs_encode_latent_penalty:
-                Q_loss += self.obs_encode_latent_penalty*xs.pow(2).mean()
+            if self.obs_latent_penalty:
+                Q_loss += self.obs_latent_penalty*xs.pow(2).mean()
 
-            if self.obs_encode_latent_step_penalty:
-                Q_loss += self.obs_encode_latent_step_penalty*(xs-xps).pow(2).mean()
+            if self.obs_latent_step_penalty:
+                Q_loss += self.obs_latent_step_penalty*(xs-xps).pow(2).mean()
+
+            if self.obs_recon_penalty:
+                assert self.obs_decoder is not None
+                hat_orig_xs = self.obs_decoder(xs)
+                assert hat_orig_xs.size() == orig_xs.size()
+                Q_loss += (orig_xs-hat_orig_xs).pow(2).mean()
 
         self.critic_opt.zero_grad()
         if self.obs_encoder is not None:
-            self.obs_encoder_opt.zero_grad()
+            self.obs_ae_opt.zero_grad()
         Q_loss.backward()
         if self.critic_clip_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
@@ -311,7 +320,7 @@ class SACMVEAgent(Agent):
         self.critic_opt.step()
         if self.obs_encoder is not None:
             # Update the encoder for value learning
-            self.obs_encoder_opt.step()
+            self.obs_ae_opt.step()
 
         self.critic.log(logger, step)
 
@@ -347,7 +356,7 @@ class SACMVEAgent(Agent):
 
             if self.critic is not None:
                 self.update_critic(
-                    latent_obs, next_latent_obs,
+                    obs, latent_obs, next_latent_obs,
                     action, reward, not_done_no_max, logger, step
                 )
                 latent_obs = latent_obs.detach()

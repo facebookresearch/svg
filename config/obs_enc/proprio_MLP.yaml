@@ -13,3 +13,12 @@ obs_encoder_cfg:
     output_dim: ${latent_obs_dim}
     hidden_depth: 2
     output_mod: tanh
+
+obs_decoder_cfg:
+  name: DecoderMLP
+  class: common.utils.MLP
+  params:
+    input_dim: ${latent_obs_dim}
+    hidden_dim: 512
+    output_dim: ${obs_dim}
+    hidden_depth: 2

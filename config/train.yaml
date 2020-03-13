@@ -70,7 +70,7 @@ agent:
     actor_betas: [0.9, 0.999]
     actor_update_freq: 1
     actor_num_sample: 1
-    actor_clip_grad_norm: 5.0
+    actor_clip_grad_norm: null # 5.0
     actor_mve: true
     actor_detach_rho: false
 
@@ -78,7 +78,7 @@ agent:
     critic_lr: 1e-4
     critic_tau: 0.005
     critic_target_update_freq: 1
-    critic_clip_grad_norm: 5.0
+    critic_clip_grad_norm: null # 5.0
     critic_target_mve: false
 
     discount: 0.99
@@ -153,13 +153,13 @@ double_q_critic:
 learn_temp:
   class: common.temp.LearnTemp
   params:
-    init_temp: 1
+    init_temp: 0.1
     max_steps: ${num_train_steps}
     init_targ_entr: -${action_dim}
     final_targ_entr: -${action_dim}
     entr_decay_factor: 0.
     only_decrease_alpha: false
-    lr: 5e-4
+    lr: 1e-4
     device: ${device}
 
 

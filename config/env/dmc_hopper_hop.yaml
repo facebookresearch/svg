@@ -1,2 +1,9 @@
 env_name: dmc_hopper_hop
-num_train_steps: 1e6
+num_train_steps: 5e6
+
+# Environment-specific overrides:
+# learn_temp:
+#   params:
+#     init_targ_entr: 0
+#     final_targ_entr: -1
+#     entr_decay_factor: 0.5

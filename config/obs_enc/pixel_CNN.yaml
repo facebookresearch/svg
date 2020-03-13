@@ -11,3 +11,10 @@ obs_encoder_cfg:
   params:
     frame_stack: ${frame_stack}
     latent_obs_dim: ${latent_obs_dim}
+
+obs_decoder_cfg:
+  name: DecoderCNN
+  class: agent.decoder.DecoderCNN
+  params:
+    frame_stack: ${frame_stack}
+    latent_obs_dim: ${latent_obs_dim}

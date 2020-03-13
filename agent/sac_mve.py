@@ -293,27 +293,34 @@ class SACMVEAgent(Agent):
         Q_loss = F.mse_loss(current_Q1, target_Q) + \
             F.mse_loss(current_Q2, target_Q)
 
-        logger.log('train_critic/loss', Q_loss, step)
+        logger.log('train_critic/Q_loss', Q_loss, step)
         current_Q = torch.min(current_Q1, current_Q2)
         logger.log('train_critic/value', current_Q.mean(), step)
 
+        loss = Q_loss
         if self.obs_encoder is not None:
             if self.obs_latent_penalty:
-                Q_loss += self.obs_latent_penalty*xs.pow(2).mean()
+                loss += self.obs_latent_penalty*0.5*xs.pow(2).mean()
 
             if self.obs_latent_step_penalty:
-                Q_loss += self.obs_latent_step_penalty*(xs-xps).pow(2).mean()
+                loss += self.obs_latent_step_penalty*F.mse_loss(xs-xps)
 
             if self.obs_recon_penalty:
                 assert self.obs_decoder is not None
                 hat_orig_xs = self.obs_decoder(xs)
                 assert hat_orig_xs.size() == orig_xs.size()
-                Q_loss += (orig_xs-hat_orig_xs).pow(2).mean()
+                if orig_xs.dim() == 4:
+                    orig_xs = utils.preprocess_obs_targets(orig_xs)
+
+                recon_loss = F.mse_loss(orig_xs, hat_orig_xs)
+                logger.log('train_critic/recon_loss', recon_loss, step)
+                loss += self.obs_recon_penalty*recon_loss
 
         self.critic_opt.zero_grad()
         if self.obs_encoder is not None:
             self.obs_ae_opt.zero_grad()
-        Q_loss.backward()
+        loss.backward()
+        logger.log('train_critic/loss', loss, step)
         if self.critic_clip_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
                 self.critic.parameters(), self.critic_clip_grad_norm)

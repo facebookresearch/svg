@@ -1,7 +1,7 @@
 pixels: False
 latent_obs_dim: 64
 
-renormalize: False
+renormalize: True
 renormalize_freq: 1000
 
 obs_encoder_cfg:

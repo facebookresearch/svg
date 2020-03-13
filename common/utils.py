@@ -223,11 +223,13 @@ def make_norm_env(cfg):
         assert cfg.env_name.startswith('dmc_')
         env = dmc.make(cfg)
 
-        def set_seed(seed):
-            return env.env._env.task.random.seed(seed)
-
         if cfg.pixels:
             env = FrameStack(env, k=cfg.frame_stack)
+            def set_seed(seed):
+                return env.env.env._env.task.random.seed(seed)
+        else:
+            def set_seed(seed):
+                return env.env._env.task.random.seed(seed)
 
     env.set_seed = set_seed
 
@@ -313,7 +315,7 @@ def make_dir(*path_parts):
     return dir_path
 
 
-def preprocess_obs(obs, bits=5):
+def preprocess_obs_targets(obs, bits=5):
     """Preprocessing image, see https://arxiv.org/abs/1807.03039."""
     bins = 2**bits
     assert obs.dtype == torch.float32

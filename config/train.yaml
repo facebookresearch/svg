@@ -76,6 +76,7 @@ agent:
 
     critic_cfg: ${double_q_critic}
     critic_lr: 1e-4
+    # TODO: Have a separate \tau for the encoder?
     critic_tau: 0.005
     critic_target_update_freq: 1
     critic_clip_grad_norm: null # 5.0
@@ -84,7 +85,7 @@ agent:
     discount: 0.99
     seq_batch_size: 512
     step_batch_size: 1024
-    horizon: 5
+    horizon: 3
     seq_train_length: ${agent.params.horizon}
     update_freq: 1
 

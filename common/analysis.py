@@ -31,10 +31,17 @@ def plot_ac_exp(root, print_cfg=False, print_overrides=True):
 
     if 'critic_loss' in df:
         ax = axs[1]
-        ax.plot(*get_smooth('critic_loss'))
+        ax.plot(*get_smooth('critic_Q_loss'))
         ax.set_ylim(0, None)
         ax.set_xlabel('1k Iteration')
-        ax.set_title('Critic Loss')
+        ax.set_ylabel('Critic Loss')
+
+        if 'critic_recon_loss' in df:
+            ax = ax.twinx()
+            ax.plot(*get_smooth('critic_recon_loss'), color='red')
+            ax.set_ylim(0, None)
+            ax.set_ylabel('Recon Loss')
+
 
     if 'model_obs_loss' in df:
         ax = axs[2]

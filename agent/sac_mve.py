@@ -128,6 +128,10 @@ class SACMVEAgent(Agent):
             self.critic = hydra.utils.instantiate(critic_cfg).to(self.device)
             self.critic_target = hydra.utils.instantiate(critic_cfg).to(
                 self.device)
+            if self.obs_encoder is not None:
+                self.obs_encoder_target = hydra.utils.instantiate(
+                    obs_encoder_cfg).to(self.device)
+                self.obs_encoder_target.load_state_dict(self.obs_encoder.state_dict())
             self.critic_target.load_state_dict(self.critic.state_dict())
             self.critic_target.train()
             self.critic_opt = torch.optim.Adam(
@@ -261,7 +265,8 @@ class SACMVEAgent(Agent):
 
 
     # @profile
-    def update_critic(self, orig_xs, xs, xps, us, rs, not_done, logger, step):
+    def update_critic(self, orig_xs, xs, orig_xps, xps,
+                      us, rs, not_done, logger, step):
         assert xs.ndimension() == 2
         n_batch, _ = xs.size()
         rs = rs.squeeze()
@@ -269,6 +274,10 @@ class SACMVEAgent(Agent):
 
         with torch.no_grad():
             if not self.critic_target_mve or step < self.warmup_steps:
+                if self.obs_encoder is None:
+                    xps_target = xps
+                else:
+                    xps_target = self.obs_encoder_target(orig_xps)
                 mu, target_us, log_pi = self.actor.forward(
                     xps, compute_pi=True, compute_log_pi=True)
                 log_pi = log_pi.squeeze(1)
@@ -363,7 +372,7 @@ class SACMVEAgent(Agent):
 
             if self.critic is not None:
                 self.update_critic(
-                    obs, latent_obs, next_latent_obs,
+                    obs, latent_obs, next_obs, next_latent_obs,
                     action, reward, not_done_no_max, logger, step
                 )
                 latent_obs = latent_obs.detach()
@@ -382,7 +391,11 @@ class SACMVEAgent(Agent):
             self.update_done_step(latent_obs, action, not_done_no_max, logger, step)
 
         if self.critic is not None and step % self.critic_target_update_freq == 0:
-            utils.soft_update_params(self.critic, self.critic_target, self.critic_tau)
+            utils.soft_update_params(
+                self.critic, self.critic_target, self.critic_tau)
+            if self.obs_encoder is not None:
+                utils.soft_update_params(
+                    self.obs_encoder, self.obs_encoder_target, self.critic_tau)
 
 
     def update_rew_step(self, obs, action, reward, logger, step):

@@ -117,7 +117,7 @@ class SampleCtrl(object):
         self.action_range = action_range
         self.num_samples = num_samples
 
-    # @profile
+    # # @profile
     def forward(self,
                 transition_model,
                 reward_model,
@@ -204,7 +204,7 @@ class SampleCtrlModel(object):
         self.action_range = action_range
         self.num_samples = num_samples
 
-    # @profile
+    # # @profile
     def forward(self,
                 model,
                 policy,

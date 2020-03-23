@@ -23,8 +23,10 @@ class ReplayBuffer(object):
         self.not_dones_no_max = np.empty((capacity, 1), dtype=np.float32)
 
         self.idx = 0
-        self.last_save = 0
+        self.global_idx = 0
+        self.global_last_save = 0
         self.full = False
+        self.payload = []
 
         if not self.pixels:
             self.mean_obs_np = 0.
@@ -59,6 +61,13 @@ class ReplayBuffer(object):
         return obs_mean, obs_std
 
     def add(self, obs, action, reward, next_obs, done, done_no_max):
+        # For saving
+        self.payload.append((
+            obs.copy(), next_obs.copy(),
+            action.copy(), reward,
+            done, done_no_max
+        ))
+
         if not self.pixels:
             self.welford.add_data(obs)
             obs = (obs - self.mean_obs_np) / self.std_obs_np
@@ -71,6 +80,7 @@ class ReplayBuffer(object):
         np.copyto(self.not_dones_no_max[self.idx], not done_no_max)
 
         self.idx = (self.idx + 1) % self.capacity
+        self.global_idx += 1
         self.full = self.full or self.idx == 0
 
     def sample(self, batch_size):
@@ -123,28 +133,21 @@ class ReplayBuffer(object):
         return obses, actions, rewards
 
     def save(self, save_dir):
-        assert not self.full # Unimplemented
-        if self.idx == self.last_save:
+        # TODO: The serialization code and logic can be significantly improved.
+
+        if self.global_idx == self.global_last_save:
             return
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-        path = os.path.join(save_dir, '%d_%d.pt' % (self.last_save, self.idx))
+        path = os.path.join(
+            save_dir, f'{self.global_last_save:08d}_{self.global_idx:08d}.pt')
 
         # Save unnormalized obs to disk.
-        obs = self.obses[self.last_save:self.idx]
-        next_obs = self.next_obses[self.last_save:self.idx]
-        if not self.pixels:
-            obs = obs * self.std_obs_np + self.mean_obs_np
-            next_obs = next_obs * self.std_obs_np + self.mean_obs_np
-        payload = [
-            obs, next_obs,
-            self.actions[self.last_save:self.idx],
-            self.rewards[self.last_save:self.idx],
-            self.not_dones[self.last_save:self.idx],
-            self.not_dones_no_max[self.last_save:self.idx],
-        ]
-        self.last_save = self.idx
+        payload = list(zip(*self.payload))
+        payload = [np.vstack(x) for x in payload]
+        self.global_last_save = self.global_idx
         torch.save(payload, path)
+        self.payload = []
 
         path = os.path.join(save_dir, 'stats.pkl')
         if not self.pixels:
@@ -153,6 +156,10 @@ class ReplayBuffer(object):
                 pkl.dump(payload, f)
 
     def load(self, save_dir):
+        def parse_chunk(chunk):
+            start, end = [int(x) for x in chunk.split('.')[0].split('_')]
+            return (start, end)
+
         if not self.pixels:
             path = os.path.join(save_dir, 'stats.pkl')
             with open(path, 'rb') as f:
@@ -162,18 +169,33 @@ class ReplayBuffer(object):
         chunks = filter(lambda fname: 'stats' not in fname, chunks)
         chunks = sorted(chunks, key=lambda x: int(x.split('_')[0]))
 
+        _, self.global_idx = parse_chunk(chunks[-1])
+        self.full = self.global_idx > self.capacity
+        global_beginning = self.global_idx - self.capacity if self.full else 0
+
         # Load and re-normalize.
         for chunk in chunks:
-            start, end = [int(x) for x in chunk.split('.')[0].split('_')]
+            global_start, global_end = parse_chunk(chunk)
+            start = global_start - global_beginning
+            end = global_end - global_beginning
+            if end <= 0:
+                continue
+
             path = os.path.join(save_dir, chunk)
             payload = torch.load(path)
+            if start < 0:
+                payload = [x[-start:] for x in payload]
+                start = 0
             assert self.idx == start
+
+            obses = payload[0]
+            next_obses = payload[1]
             if not self.pixels:
-                self.obses[start:end] = (payload[0] - self.mean_obs_np) / self.std_obs_np
-                self.next_obses[start:end] = (payload[1] - self.mean_obs_np) / self.std_obs_np
-            else:
-                self.obses[start:end] = payload[0]
-                self.next_obses[start:end] = payload[1]
+                obses = (obses - self.mean_obs_np) / self.std_obs_np
+                next_obses = (next_obses - self.mean_obs_np) / self.std_obs_np
+
+            self.obses[start:end] = obses
+            self.next_obses[start:end] = next_obses
             self.actions[start:end] = payload[2]
             self.rewards[start:end] = payload[3]
             self.not_dones[start:end] = payload[4]
@@ -181,3 +203,8 @@ class ReplayBuffer(object):
             self.idx = end
 
         self.last_save = self.idx
+
+        if self.full:
+            assert self.idx == self.capacity
+            self.idx = 0
+

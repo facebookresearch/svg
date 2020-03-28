@@ -1,9 +1,8 @@
 env_name: mbpo_humanoid
 # num_train_steps: 3e6
 num_train_steps: 1e7
-renormalize_freq: 50000
 eval_freq: 25000
-replay_buffer_capacity: 1e6
+# replay_buffer_capacity: 1e6
 
 # Environment-specific overrides:
 learn_temp:

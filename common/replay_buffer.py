@@ -8,7 +8,7 @@ from common import utils
 
 class ReplayBuffer(object):
     """Buffer to store environment transitions."""
-    def __init__(self, obs_shape, action_shape, capacity, device):
+    def __init__(self, obs_shape, action_shape, capacity, device, normalize_obs):
         self.capacity = capacity
         self.device = device
 
@@ -28,37 +28,24 @@ class ReplayBuffer(object):
         self.full = False
         self.payload = []
 
-        if not self.pixels:
-            self.mean_obs_np = 0.
-            self.std_obs_np = 1.
+        self.normalize_obs = normalize_obs
+
+        if normalize_obs:
+            assert not self.pixels
             self.welford = utils.Welford()
 
     def __len__(self):
         return self.capacity if self.full else self.idx
 
-    def normalize_obs(self):
+    def get_obs_stats(self):
         assert not self.pixels
         MIN_STD = 1e-1
         MAX_STD = 10
-        # i = self.capacity if self.full else self.idx
-        self.mean_obs_np = self.welford.mean()
-        self.std_obs_np = self.welford.std()
-        self.std_obs_np[self.std_obs_np < MIN_STD] = MIN_STD
-        self.std_obs_np[self.std_obs_np > MAX_STD] = MAX_STD
-        self.obses = (self.obses - self.mean_obs_np) / self.std_obs_np
-        self.next_obses = (self.next_obses - self.mean_obs_np) / self.std_obs_np
-
-    def renormalize_obs(self):
-        assert not self.pixels
-        self.obses = (self.obses * self.std_obs_np) + self.mean_obs_np
-        self.next_obses = (self.next_obses * self.std_obs_np) + self.mean_obs_np
-        self.normalize_obs()
-
-    def get_obs_stats(self):
-        assert not self.pixels
-        obs_mean = torch.from_numpy(self.mean_obs_np).to(self.device).float()
-        obs_std = torch.from_numpy(self.std_obs_np).to(self.device).float()
-        return obs_mean, obs_std
+        mean = self.welford.mean()
+        std = self.welford.std()
+        std[std < MIN_STD] = MIN_STD
+        std[std > MAX_STD] = MAX_STD
+        return mean, std
 
     def add(self, obs, action, reward, next_obs, done, done_no_max):
         # For saving
@@ -68,10 +55,9 @@ class ReplayBuffer(object):
             done, done_no_max
         ))
 
-        if not self.pixels:
+        if self.normalize_obs:
             self.welford.add_data(obs)
-            obs = (obs - self.mean_obs_np) / self.std_obs_np
-            next_obs = (next_obs - self.mean_obs_np) / self.std_obs_np
+
         np.copyto(self.obses[self.idx], obs)
         np.copyto(self.actions[self.idx], action)
         np.copyto(self.rewards[self.idx], reward)
@@ -84,18 +70,28 @@ class ReplayBuffer(object):
         self.full = self.full or self.idx == 0
 
     def sample(self, batch_size):
-        idxs = np.random.randint(0,
-                                 self.capacity if self.full else self.idx,
-                                 size=batch_size)
+        idxs = np.random.randint(
+            0, self.capacity if self.full else self.idx,
+            size=batch_size)
 
-        obses = torch.as_tensor(self.obses[idxs], device=self.device).float()
+        obses = self.obses[idxs]
+        next_obses = self.next_obses[idxs]
+
+        if self.normalize_obs:
+            mu, sigma = self.get_obs_stats()
+            obses = (obses-mu)/sigma
+            next_obses = (next_obses-mu)/sigma
+
+        obses = torch.as_tensor(obses, device=self.device).float()
         actions = torch.as_tensor(self.actions[idxs], device=self.device)
         rewards = torch.as_tensor(self.rewards[idxs], device=self.device)
-        next_obses = torch.as_tensor(self.next_obses[idxs],
-                                     device=self.device).float()
+        next_obses = torch.as_tensor(
+            next_obses, device=self.device).float()
         not_dones = torch.as_tensor(self.not_dones[idxs], device=self.device)
         not_dones_no_max = torch.as_tensor(self.not_dones_no_max[idxs],
                                            device=self.device)
+
+
 
         return obses, actions, rewards, next_obses, not_dones, not_dones_no_max
 
@@ -126,6 +122,10 @@ class ReplayBuffer(object):
         actions = np.stack(actions)
         rewards = np.stack(rewards).squeeze(2)
 
+        if self.normalize_obs:
+            mu, sigma = self.get_obs_stats()
+            obses = (obses-mu)/sigma
+
         obses = torch.as_tensor(obses, device=self.device).float()
         actions = torch.as_tensor(actions, device=self.device)
         rewards = torch.as_tensor(rewards, device=self.device)
@@ -142,7 +142,6 @@ class ReplayBuffer(object):
         path = os.path.join(
             save_dir, f'{self.global_last_save:08d}_{self.global_idx:08d}.pt')
 
-        # Save unnormalized obs to disk.
         payload = list(zip(*self.payload))
         payload = [np.vstack(x) for x in payload]
         self.global_last_save = self.global_idx
@@ -151,7 +150,7 @@ class ReplayBuffer(object):
 
         path = os.path.join(save_dir, 'stats.pkl')
         if not self.pixels:
-            payload = (self.mean_obs_np, self.std_obs_np, self.welford)
+            payload = (self.welford)
             with open(path, 'wb') as f:
                 pkl.dump(payload, f)
 
@@ -163,7 +162,7 @@ class ReplayBuffer(object):
         if not self.pixels:
             path = os.path.join(save_dir, 'stats.pkl')
             with open(path, 'rb') as f:
-                self.mean_obs_np, self.std_obs_np, self.welford = pkl.load(f)
+                self.welford = pkl.load(f)
 
         chunks = os.listdir(save_dir)
         chunks = filter(lambda fname: 'stats' not in fname, chunks)
@@ -190,9 +189,6 @@ class ReplayBuffer(object):
 
             obses = payload[0]
             next_obses = payload[1]
-            if not self.pixels:
-                obses = (obses - self.mean_obs_np) / self.std_obs_np
-                next_obses = (next_obses - self.mean_obs_np) / self.std_obs_np
 
             self.obses[start:end] = obses
             self.next_obses[start:end] = next_obses

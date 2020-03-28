@@ -1,8 +1,7 @@
 pixels: False
 latent_obs_dim: 64
 
-renormalize: True
-renormalize_freq: 1000
+normalize_obs: False
 
 obs_encoder_cfg:
   name: EncoderMLP

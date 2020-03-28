@@ -58,7 +58,8 @@ class Workspace(object):
             self.env.observation_space.shape,
             self.env.action_space.shape,
             int(cfg.replay_buffer_capacity),
-            self.device
+            self.device,
+            normalize_obs=cfg.normalize_obs,
         )
         self.replay_dir = os.path.join(self.work_dir, 'replay')
 
@@ -82,9 +83,9 @@ class Workspace(object):
             episode_reward = 0
             while not done:
                 with utils.eval_mode(self.agent):
-                    if self.cfg.renormalize:
-                        obs_norm = (obs - self.replay_buffer.mean_obs_np) / \
-                          self.replay_buffer.std_obs_np
+                    if self.cfg.normalize_obs:
+                        mu, sigma = self.replay_buffer.get_obs_stats()
+                        obs_norm = (obs - mu) / sigma
                         action = self.agent.act(obs_norm, sample=False)
                     else:
                         action = self.agent.act(obs, sample=False)
@@ -150,19 +151,14 @@ class Workspace(object):
                 if self.cfg.save_latest:
                     self.save(tag='latest')
 
-            if self.cfg.renormalize and self.replay_buffer.idx > 0 and \
-                self.step % self.cfg.renormalize_freq == 0 and \
-                self.step < self.cfg.num_train_steps - 1000:
-                    self.replay_buffer.renormalize_obs()
-
             # sample action for data collection
             if self.step < self.cfg.num_seed_steps:
                 action = self.env.action_space.sample()
             else:
                 with utils.eval_mode(self.agent):
-                    if self.cfg.renormalize:
-                        obs_norm = (obs - self.replay_buffer.mean_obs_np) / \
-                          self.replay_buffer.std_obs_np
+                    if self.cfg.normalize_obs:
+                        mu, sigma = self.replay_buffer.get_obs_stats()
+                        obs_norm = (obs - mu) / sigma
                         action = self.agent.act(obs_norm, sample=True)
                     else:
                         action = self.agent.act(obs, sample=True)

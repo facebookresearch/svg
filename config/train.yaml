@@ -5,14 +5,16 @@ defaults:
 
 experiment: test
 
-# replay_buffer_capacity: max(${num_train_steps}, 1e6)
-replay_buffer_capacity: ${num_train_steps}
+replay_buffer_capacity: max(${num_train_steps}, 1e6)
+# replay_buffer_capacity: ${num_train_steps}
 
 num_seed_steps: 1000
 
 eval_freq: 10000
 num_eval_episodes: 10
 fixed_eval: true
+
+normalize_obs: ??? # Set by obs_enc
 
 device: cuda
 action_repeat: 1

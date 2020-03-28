@@ -1,5 +1,5 @@
 env_name: mbpo_ant
-num_train_steps: 1.5e6
+num_train_steps: 2e6
 
 # Environment-specific overrides:
 learn_temp:

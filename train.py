@@ -213,7 +213,8 @@ class Workspace(object):
         self.work_dir = os.getcwd()
         self.logger = Logger(self.work_dir,
                              save_tb=self.cfg.log_save_tb,
-                             log_frequency=self.cfg.log_freq)
+                             log_frequency=self.cfg.log_freq,
+                             agent=self.cfg.agent.name)
         self.env = utils.make_norm_env(self.cfg)
         if 'max_episode_steps' in self.cfg and self.cfg.max_episode_steps is not None:
             self.env._max_episode_steps = self.cfg.max_episode_steps
@@ -222,10 +223,13 @@ class Workspace(object):
         self.done = False
 
         # Re-initialize an empty replay buffer.
-        self.replay_buffer = ReplayBuffer(self.env.observation_space.shape,
-                                          self.env.action_space.shape,
-                                          int(self.cfg.replay_buffer_capacity),
-                                          self.device)
+        self.replay_buffer = ReplayBuffer(
+            self.env.observation_space.shape,
+            self.env.action_space.shape,
+            int(self.cfg.replay_buffer_capacity),
+            self.device,
+            self.cfg.normalize_obs,
+        )
         if os.path.exists(self.replay_dir):
             self.replay_buffer.load(self.replay_dir)
 

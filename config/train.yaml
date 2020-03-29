@@ -1,7 +1,7 @@
 defaults:
     - env: mbpo_ant
-    - hydra/launcher: submitit
     - obs_enc: proprio_identity # proprio_MLP, pixel_CNN
+    - hydra/launcher: submitit
 
 experiment: test
 
@@ -92,7 +92,7 @@ agent:
     update_freq: 1
 
     model_update_freq: 1
-    model_update_repeat: 4
+    model_update_repeat: 1
 
     model_free_update_repeat: 1
 

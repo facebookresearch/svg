@@ -1,6 +1,5 @@
 defaults:
     - env: mbpo_ant
-    - obs_enc: proprio_identity # proprio_MLP, pixel_CNN
     - hydra/launcher: submitit
 
 experiment: test
@@ -14,7 +13,7 @@ eval_freq: 10000
 num_eval_episodes: 10
 fixed_eval: true
 
-normalize_obs: ??? # Set by obs_enc
+normalize_obs: true
 
 device: cuda
 action_repeat: 1
@@ -47,7 +46,6 @@ agent:
   params:
     env_name: ${env_name}
     obs_dim: ${obs_dim}
-    latent_obs_dim: ${latent_obs_dim}
     action_dim: ${action_dim}
     action_range: ${action_range}
     device: ${device}
@@ -57,20 +55,12 @@ agent:
     train_with_policy_mean: false
     train_action_noise: 0.0
 
-    obs_encoder_cfg: ${obs_encoder_cfg}
-    obs_decoder_cfg: ${obs_decoder_cfg}
-    obs_ae_lr: 5e-4
-    obs_latent_penalty: 0.
-    obs_latent_step_penalty: 0.
-    obs_recon_penalty: 0.
-
     temp_cfg: ${learn_temp}
 
     actor_cfg: ${normal_actor}
     actor_lr: 1e-4
     actor_betas: [0.9, 0.999]
     actor_update_freq: 1
-    actor_num_sample: 1
     actor_clip_grad_norm: null # 5.0
     actor_mve: true
     actor_detach_rho: false
@@ -119,7 +109,7 @@ dx:
   class: common.dx.SeqDx
   params:
     env_name: ${env_name}
-    obs_dim: ${latent_obs_dim}
+    obs_dim: ${obs_dim}
     action_dim: ${action_dim}
     action_range: ${action_range}
     horizon: ${agent.params.horizon}
@@ -138,7 +128,7 @@ dx:
 normal_actor:
   class: agent.actor.NormalActor
   params:
-    obs_dim: ${latent_obs_dim}
+    obs_dim: ${obs_dim}
     action_dim: ${action_dim}
     hidden_dim: ${model_free_hidden_dim}
     hidden_depth: ${model_free_hidden_depth}
@@ -147,7 +137,7 @@ normal_actor:
 double_q_critic:
   class: agent.critic.DoubleQCritic
   params:
-    obs_dim: ${latent_obs_dim}
+    obs_dim: ${obs_dim}
     action_dim: ${action_dim}
     hidden_dim: ${model_free_hidden_dim}
     hidden_depth: ${model_free_hidden_depth}

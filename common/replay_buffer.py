@@ -127,6 +127,7 @@ class ReplayBuffer(object):
         last_idx = self.capacity if self.full else self.idx
         last_idx -= T
         idxs = []
+        assert last_idx + 1 > batch_size, "Not enough transitions"
         while len(idxs) < batch_size:
             i = np.random.randint(0, last_idx)
             if i in idxs:

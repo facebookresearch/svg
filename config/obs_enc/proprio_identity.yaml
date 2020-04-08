@@ -1,6 +1,0 @@
-pixels: False
-latent_obs_dim: ${obs_dim}
-obs_encoder_cfg: null
-obs_decoder_cfg: null
-
-normalize_obs: True

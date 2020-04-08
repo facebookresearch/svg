@@ -11,6 +11,9 @@ import shutil
 import time
 import pickle as pkl
 
+from setproctitle import setproctitle
+setproctitle('mve')
+
 import hydra
 
 from common.video import VideoRecorder
@@ -22,6 +25,7 @@ if os.isatty(sys.stdout.fileno()):
     from IPython.core import ultratb
     sys.excepthook = ultratb.FormattedTB(
         mode='Verbose', color_scheme='Linux', call_pdb=1)
+
 
 class Workspace(object):
     def __init__(self, cfg):
@@ -121,7 +125,7 @@ class Workspace(object):
                     self.logger.dump(
                         self.step, save=(self.step > self.cfg.num_seed_steps))
 
-                # evaluate agent periodically
+                print(self.steps_since_eval, self.cfg.eval_freq)
                 if self.steps_since_eval >= self.cfg.eval_freq:
                     self.logger.log('eval/episode', self.episode, self.step)
                     eval_rew = self.evaluate()
@@ -130,6 +134,9 @@ class Workspace(object):
                     if self.best_eval_rew is None or eval_rew > self.best_eval_rew:
                         self.save(tag='best')
                         self.best_eval_rew = eval_rew
+
+                    self.replay_buffer.save_data(self.replay_dir)
+                    self.save(tag='latest')
 
 
                 if self.step > 0 and self.cfg.save_freq and \
@@ -147,9 +154,6 @@ class Workspace(object):
                 self.episode_step = 0
                 self.episode += 1
 
-                self.replay_buffer.save(self.replay_dir)
-                if self.cfg.save_latest:
-                    self.save(tag='latest')
 
             # sample action for data collection
             if self.step < self.cfg.num_seed_steps:
@@ -165,6 +169,7 @@ class Workspace(object):
 
             # run training update
             if self.step >= self.cfg.num_seed_steps-1:
+                print('updating')
                 self.agent.update(self.replay_buffer, self.logger, self.step)
 
             next_obs, reward, self.done, _ = self.env.step(action)
@@ -204,7 +209,7 @@ class Workspace(object):
 
     def __getstate__(self):
         d = copy.copy(self.__dict__)
-        del d['replay_buffer'], d['logger'], d['env']
+        del d['logger'], d['env']
         return d
 
     def __setstate__(self, d):
@@ -222,16 +227,8 @@ class Workspace(object):
         self.episode_reward = 0
         self.done = False
 
-        # Re-initialize an empty replay buffer.
-        self.replay_buffer = ReplayBuffer(
-            self.env.observation_space.shape,
-            self.env.action_space.shape,
-            int(self.cfg.replay_buffer_capacity),
-            self.device,
-            self.cfg.normalize_obs,
-        )
         if os.path.exists(self.replay_dir):
-            self.replay_buffer.load(self.replay_dir)
+            self.replay_buffer.load_data(self.replay_dir)
 
 
 @hydra.main(config_path='config/train.yaml', strict=True)

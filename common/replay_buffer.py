@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import os
+import copy
 
 import pickle as pkl
 
@@ -9,11 +10,41 @@ from common import utils
 class ReplayBuffer(object):
     """Buffer to store environment transitions."""
     def __init__(self, obs_shape, action_shape, capacity, device, normalize_obs):
+        self.obs_shape = obs_shape
+        self.action_shape = action_shape
         self.capacity = capacity
         self.device = device
 
         self.pixels = len(obs_shape) > 1
+        self.empty_data()
+
+        self.global_idx = 0
+        self.global_last_save = 0
+
+        self.normalize_obs = normalize_obs
+
+        if normalize_obs:
+            assert not self.pixels
+            self.welford = utils.Welford()
+
+    def __getstate__(self):
+        d = copy.copy(self.__dict__)
+        del d['obses'], d['next_obses'], d['actions'], d['rewards'], \
+          d['not_dones'], d['not_dones_no_max']
+        return d
+
+    def __setstate__(self, d):
+        self.__dict__ = d
+
+        # Manually need to re-load the transitions with load()
+        self.empty_data()
+
+
+    def empty_data(self):
         obs_dtype = np.float32 if not self.pixels else np.uint8
+        obs_shape = self.obs_shape
+        action_shape = self.action_shape
+        capacity = self.capacity
 
         self.obses = np.empty((capacity, *obs_shape), dtype=obs_dtype)
         self.next_obses = np.empty((capacity, *obs_shape), dtype=obs_dtype)
@@ -23,16 +54,9 @@ class ReplayBuffer(object):
         self.not_dones_no_max = np.empty((capacity, 1), dtype=np.float32)
 
         self.idx = 0
-        self.global_idx = 0
-        self.global_last_save = 0
         self.full = False
         self.payload = []
 
-        self.normalize_obs = normalize_obs
-
-        if normalize_obs:
-            assert not self.pixels
-            self.welford = utils.Welford()
 
     def __len__(self):
         return self.capacity if self.full else self.idx
@@ -52,7 +76,7 @@ class ReplayBuffer(object):
         self.payload.append((
             obs.copy(), next_obs.copy(),
             action.copy(), reward,
-            done, done_no_max
+            not done, not done_no_max
         ))
 
         if self.normalize_obs:
@@ -132,7 +156,7 @@ class ReplayBuffer(object):
 
         return obses, actions, rewards
 
-    def save(self, save_dir):
+    def save_data(self, save_dir):
         # TODO: The serialization code and logic can be significantly improved.
 
         if self.global_idx == self.global_last_save:
@@ -148,31 +172,22 @@ class ReplayBuffer(object):
         torch.save(payload, path)
         self.payload = []
 
-        path = os.path.join(save_dir, 'stats.pkl')
-        if not self.pixels:
-            payload = (self.welford)
-            with open(path, 'wb') as f:
-                pkl.dump(payload, f)
 
-    def load(self, save_dir):
+    def load_data(self, save_dir):
         def parse_chunk(chunk):
             start, end = [int(x) for x in chunk.split('.')[0].split('_')]
             return (start, end)
 
-        if not self.pixels:
-            path = os.path.join(save_dir, 'stats.pkl')
-            with open(path, 'rb') as f:
-                self.welford = pkl.load(f)
+
+        self.idx = 0
 
         chunks = os.listdir(save_dir)
         chunks = filter(lambda fname: 'stats' not in fname, chunks)
         chunks = sorted(chunks, key=lambda x: int(x.split('_')[0]))
 
-        _, self.global_idx = parse_chunk(chunks[-1])
         self.full = self.global_idx > self.capacity
         global_beginning = self.global_idx - self.capacity if self.full else 0
 
-        # Load and re-normalize.
         for chunk in chunks:
             global_start, global_end = parse_chunk(chunk)
             start = global_start - global_beginning
@@ -203,4 +218,3 @@ class ReplayBuffer(object):
         if self.full:
             assert self.idx == self.capacity
             self.idx = 0
-

@@ -125,7 +125,6 @@ class Workspace(object):
                     self.logger.dump(
                         self.step, save=(self.step > self.cfg.num_seed_steps))
 
-                print(self.steps_since_eval, self.cfg.eval_freq)
                 if self.steps_since_eval >= self.cfg.eval_freq:
                     self.logger.log('eval/episode', self.episode, self.step)
                     eval_rew = self.evaluate()

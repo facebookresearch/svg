@@ -126,7 +126,7 @@ dx:
     lr: 1e-3
 
 normal_actor:
-  class: mve.actor.NormalActor
+  class: mve.actor.Actor
   params:
     obs_dim: ${obs_dim}
     action_dim: ${action_dim}

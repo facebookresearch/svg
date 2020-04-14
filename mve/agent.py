@@ -115,8 +115,6 @@ class SACMVEAgent(Agent):
 
         self.actor = hydra.utils.instantiate(actor_cfg).to(self.device)
         mods = [self.actor]
-        if isinstance(self.actor, actor.NormalRecActor):
-            mods.append(self.dx.rec)
         params = utils.get_params(mods)
         self.actor_opt = torch.optim.Adam(
             params, lr=actor_lr, betas=actor_betas)

@@ -17,7 +17,7 @@ setproctitle('mve')
 import hydra
 
 from mve.video import VideoRecorder
-from mve import utils, dmc
+from mve import utils
 from mve.logger import Logger
 from mve.replay_buffer import ReplayBuffer
 

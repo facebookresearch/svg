@@ -16,7 +16,7 @@ import time
 import itertools
 import operator
 
-from . import dmc
+from .env import dmc
 
 from gym import spaces
 from gym.wrappers import TimeLimit

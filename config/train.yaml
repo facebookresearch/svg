@@ -42,7 +42,7 @@ action_range: ???
 
 agent:
   name: sac_mve
-  class: agent.sac_mve.SACMVEAgent
+  class: mve.agent.SACMVEAgent
   params:
     env_name: ${env_name}
     obs_dim: ${obs_dim}
@@ -106,7 +106,7 @@ agent:
 
 dx:
   name: dx
-  class: common.dx.SeqDx
+  class: mve.dx.SeqDx
   params:
     env_name: ${env_name}
     obs_dim: ${obs_dim}
@@ -126,7 +126,7 @@ dx:
     lr: 1e-3
 
 normal_actor:
-  class: agent.actor.NormalActor
+  class: mve.actor.NormalActor
   params:
     obs_dim: ${obs_dim}
     action_dim: ${action_dim}
@@ -135,7 +135,7 @@ normal_actor:
     log_std_bounds: [-5, 2]
 
 double_q_critic:
-  class: agent.critic.DoubleQCritic
+  class: mve.critic.DoubleQCritic
   params:
     obs_dim: ${obs_dim}
     action_dim: ${action_dim}
@@ -143,7 +143,7 @@ double_q_critic:
     hidden_depth: ${model_free_hidden_depth}
 
 learn_temp:
-  class: common.temp.LearnTemp
+  class: mve.temp.LearnTemp
   params:
     init_temp: 0.1
     max_steps: ${num_train_steps}

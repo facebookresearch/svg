@@ -16,10 +16,10 @@ setproctitle('mve')
 
 import hydra
 
-from common.video import VideoRecorder
-from common import utils, dmc
-from common.logger import Logger
-from common.replay_buffer import ReplayBuffer
+from mve.video import VideoRecorder
+from mve import utils, dmc
+from mve.logger import Logger
+from mve.replay_buffer import ReplayBuffer
 
 if os.isatty(sys.stdout.fileno()):
     from IPython.core import ultratb

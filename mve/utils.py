@@ -16,7 +16,7 @@ import time
 import itertools
 import operator
 
-from common import dmc
+from . import dmc
 
 from gym import spaces
 from gym.wrappers import TimeLimit
@@ -172,7 +172,7 @@ def make_norm_env(cfg):
         def set_seed(seed):
             return env.env.seed(seed)
     elif cfg.env_name == 'mbpo_ant':
-        from common.env import register_mbpo_environments
+        from .env import register_mbpo_environments
         register_mbpo_environments()
         env = gym.make('AntTruncatedObs-v2')
         env = RescaleAction(env, -1., 1.)

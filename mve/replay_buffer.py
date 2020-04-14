@@ -5,7 +5,7 @@ import copy
 
 import pickle as pkl
 
-from common import utils
+from . import utils
 
 class ReplayBuffer(object):
     """Buffer to store environment transitions."""

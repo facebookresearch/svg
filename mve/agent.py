@@ -1,3 +1,5 @@
+import abc
+
 import numpy as np
 import torch
 from torch import distributions
@@ -8,8 +10,25 @@ from typing import Optional, List
 
 import hydra
 
-from agent import actor, critic, Agent
-from common import utils, dx
+from . import utils, dx, actor, critic
+
+class Agent(object):
+    def reset(self):
+        """For state-full agents this function performs reseting at the beginning of each episode."""
+        pass
+
+    @abc.abstractmethod
+    def train(self, training=True):
+        """Sets the agent in either training or evaluation mode."""
+
+    @abc.abstractmethod
+    def update(self, replay_buffer, logger, step):
+        """Main function of the agent that performs learning."""
+
+    @abc.abstractmethod
+    def act(self, obs, sample=False):
+        """Issues an action given an observation."""
+
 
 class SACMVEAgent(Agent):
     """SAC-MVE agent."""
@@ -378,4 +397,3 @@ class SACMVEAgent(Agent):
         self.done_opt.step()
 
         logger.log('train_model/done_loss', done_loss, step)
-

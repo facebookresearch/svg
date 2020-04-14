@@ -6,8 +6,7 @@ import torch.nn.functional as F
 import higher
 import hydra
 
-from common.dcem import dcem
-from common import utils
+from . import utils
 
 
 class DoubleQCritic(nn.Module):

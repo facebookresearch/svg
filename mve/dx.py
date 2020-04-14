@@ -2,8 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from agent import actor
-from common import utils
+from . import utils
 
 class SeqDx(nn.Module):
     def __init__(self,
@@ -97,8 +96,8 @@ class SeqDx(nn.Module):
         xt = init_x
         for t in range(self.horizon-1):
             policy_kwargs = {}
-            if isinstance(policy, actor.NormalRecActor):
-                policy_kwargs['ht'] = h.transpose(0,1).reshape(n_batch, -1)
+            # if isinstance(policy, actor.NormalRecActor):
+            #     policy_kwargs['ht'] = h.transpose(0,1).reshape(n_batch, -1)
             if sample:
                 _, ut, log_p_ut = policy(xt, **policy_kwargs)
             else:
@@ -122,8 +121,8 @@ class SeqDx(nn.Module):
 
         if last_u:
             policy_kwargs = {}
-            if isinstance(policy, actor.NormalRecActor):
-                policy_kwargs['ht'] = h.transpose(0,1).reshape(n_batch, -1)
+            # if isinstance(policy, actor.NormalRecActor):
+            #     policy_kwargs['ht'] = h.transpose(0,1).reshape(n_batch, -1)
             if sample:
                 _, ut, log_p_ut = policy(xt, **policy_kwargs)
             else:

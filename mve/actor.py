@@ -7,8 +7,7 @@ from torch import distributions as pyd
 import higher
 import hydra
 
-from common.dcem import dcem
-from common import utils
+from . import utils
 
 
 class VanillaActor(nn.Module):

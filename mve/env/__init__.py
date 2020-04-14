@@ -3,12 +3,12 @@ import gym
 MBPO_ENVIRONMENT_SPECS = (
 	{
         'id': 'AntTruncatedObs-v2',
-        'entry_point': (f'common.env.ant:AntTruncatedObsEnv'),
+        'entry_point': (f'mve.env.ant:AntTruncatedObsEnv'),
         'max_episode_steps': 1000,
     },
 	{
         'id': 'HumanoidTruncatedObs-v2',
-        'entry_point': (f'common.env.humanoid:HumanoidTruncatedObsEnv'),
+        'entry_point': (f'mve.env.humanoid:HumanoidTruncatedObsEnv'),
         'max_episode_steps': 1000,
     },
 )
@@ -16,17 +16,17 @@ MBPO_ENVIRONMENT_SPECS = (
 PETS_ENVIRONMENT_SPECS = (
 	{
         'id': 'PetsCheetah-v0',
-        'entry_point': (f'common.env.pets_cheetah:PetsCheetahEnv'),
+        'entry_point': (f'mve.env.pets_cheetah:PetsCheetahEnv'),
         'max_episode_steps': 1000,
     },
 	{
         'id': 'PetsReacher-v0',
-        'entry_point': (f'common.env.pets_reacher:PetsReacherEnv'),
+        'entry_point': (f'mve.env.pets_reacher:PetsReacherEnv'),
         'max_episode_steps': 150,
     },
 	{
         'id': 'PetsPusher-v0',
-        'entry_point': (f'common.env.pets_pusher:PetsPusherEnv'),
+        'entry_point': (f'mve.env.pets_pusher:PetsPusherEnv'),
         'max_episode_steps': 150,
     },
 )

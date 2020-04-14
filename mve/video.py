@@ -3,10 +3,7 @@ import os
 import numpy as np
 import sys
 
-# add parent folder
-sys.path.append(os.path.join(os.getcwd(), '..'))
-
-from common import utils
+from . import utils
 
 
 class VideoRecorder(object):

@@ -1,13 +1,8 @@
-import numpy as np
 import torch
 from torch import nn
-import torch.nn.functional as F
-from torch import distributions as pyd
-
-import higher
-import hydra
 
 from . import utils
+
 
 class Actor(nn.Module):
     """An isotropic Gaussian policy."""

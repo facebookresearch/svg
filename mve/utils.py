@@ -1,11 +1,9 @@
-import numpy as np
 import torch
 from torch import nn
 from torch import distributions as pyd
 import torch.nn.functional as F
 
 import gym
-from gym import ActionWrapper
 
 import os
 from collections import deque
@@ -13,13 +11,9 @@ import random
 import math
 import time
 
-import itertools
-import operator
-
 from .env import dmc
 
 from gym import spaces
-from gym.wrappers import TimeLimit
 
 
 # https://github.com/openai/gym/blob/master/gym/wrappers/rescale_action.py
@@ -94,7 +88,7 @@ def make_norm_env(cfg):
         def set_seed(seed):
             return env.env.seed(seed)
     elif cfg.env_name == 'pets_cheetah':
-        from common.env import register_pets_environments
+        from mve.env import register_pets_environments
         register_pets_environments()
         env = gym.make('PetsCheetah-v0')
         env = RescaleAction(env, -1., 1.)
@@ -110,7 +104,7 @@ def make_norm_env(cfg):
         def set_seed(seed):
             return env.env.seed(seed)
     elif cfg.env_name == 'pets_reacher':
-        from common.env import register_pets_environments
+        from mve.env import register_pets_environments
         register_pets_environments()
         env = gym.make('PetsReacher-v0')
         env = RescaleAction(env, -1., 1.)
@@ -126,7 +120,7 @@ def make_norm_env(cfg):
         def set_seed(seed):
             return env.env.seed(seed)
     elif cfg.env_name == 'pets_pusher':
-        from common.env import register_pets_environments
+        from mve.env import register_pets_environments
         register_pets_environments()
         env = gym.make('PetsPusher-v0')
         env = RescaleAction(env, -1., 1.)
@@ -188,7 +182,7 @@ def make_norm_env(cfg):
         def set_seed(seed):
             return env.env.seed(seed)
     elif cfg.env_name == 'mbpo_cheetah':
-        from common.env import register_mbpo_environments
+        from mve.env import register_mbpo_environments
         register_mbpo_environments()
         env = gym.make('HalfCheetah-v2')
         env = RescaleAction(env, -1., 1.)
@@ -204,7 +198,7 @@ def make_norm_env(cfg):
         def set_seed(seed):
             return env.env.seed(seed)
     elif cfg.env_name == 'mbpo_humanoid':
-        from common.env import register_mbpo_environments
+        from mve.env import register_mbpo_environments
         register_mbpo_environments()
         env = gym.make('HumanoidTruncatedObs-v2')
         env = RescaleAction(env, -1., 1.)

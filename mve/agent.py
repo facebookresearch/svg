@@ -1,16 +1,11 @@
 import abc
 
-import numpy as np
 import torch
-from torch import distributions
-from torch import nn
 import torch.nn.functional as F
-import math
-from typing import Optional, List
 
 import hydra
 
-from . import utils, dx, actor, critic
+from . import utils
 
 class Agent(object):
     def reset(self):

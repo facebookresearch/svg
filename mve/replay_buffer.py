@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.random as npr
 import torch
 import os
 import copy
@@ -119,22 +120,45 @@ class ReplayBuffer(object):
 
         return obses, actions, rewards, next_obses, not_dones, not_dones_no_max
 
+
     def sample_multistep(self, batch_size, T):
         assert batch_size < self.idx or self.full
 
-        # The sampling here could be improved, and may cause an infinite
-        # loop if T is too large.
         last_idx = self.capacity if self.full else self.idx
         last_idx -= T
-        idxs = []
-        assert last_idx + 1 > batch_size, "Not enough transitions"
-        while len(idxs) < batch_size:
-            i = np.random.randint(0, last_idx)
-            if i in idxs:
-                continue
-            if np.all(self.not_dones[i:i + T] == 1.):
-                idxs.append(i)
-        idxs = np.array(idxs)
+
+        # Keeping the old inefficient but more readable version
+        # here just in case:
+        #
+        # idxs = []
+        # assert last_idx + 1 > batch_size, "Not enough transitions"
+        # while len(idxs) < batch_size:
+        #     i = np.random.randint(0, last_idx)
+        #     if i in idxs:
+        #         continue
+        #     if np.all(self.not_dones[i:i + T] == 1.):
+        #         idxs.append(i)
+        # idxs = np.array(idxs)
+
+        done_idxs, _ = np.where(1.-self.not_dones[:last_idx])
+        done_idxs = np.concatenate((done_idxs, [last_idx]))
+        n_done = len(done_idxs)
+
+        # raw here means the "coalesced" indices that map to valid
+        # indicies that are more than T steps away from a done
+        done_idxs_raw = []
+        for i in range(n_done):
+            done_idxs_raw.append(done_idxs[i] - (i+1)*T)
+        done_idxs_raw = np.array(done_idxs_raw)
+
+        def raw_to_orig(idx):
+            j = np.searchsorted(done_idxs_raw, idx)
+            offset = done_idxs_raw[j] - idx + T
+            return done_idxs[j] - offset
+
+        idxs_raw = npr.choice(
+            last_idx-(T+1)*len(done_idxs), size=batch_size, replace=False)
+        idxs = np.vectorize(raw_to_orig)(idxs_raw)
 
         obses, actions, rewards = [], [], []
 
@@ -142,6 +166,7 @@ class ReplayBuffer(object):
             obses.append(self.obses[idxs + t])
             actions.append(self.actions[idxs + t])
             rewards.append(self.rewards[idxs + t])
+            assert np.all(self.not_dones[idxs + t])
 
         obses = np.stack(obses)
         actions = np.stack(actions)

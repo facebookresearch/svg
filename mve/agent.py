@@ -37,30 +37,26 @@ class SACMVEAgent(Agent):
         device,
         dx_cfg,
         num_train_steps,
-        train_with_policy_mean, train_action_noise,
         temp_cfg,
         actor_cfg,
         actor_lr, actor_betas,
         actor_update_freq,
-        actor_clip_grad_norm,
         actor_mve,
         actor_detach_rho,
         critic_cfg, critic_lr, critic_tau,
         critic_target_update_freq,
-        critic_clip_grad_norm,
         critic_target_mve,
         discount,
         seq_batch_size, seq_train_length,
         step_batch_size,
         update_freq, model_update_freq,
-        rew_obs_noise, done_obs_noise, done_obs_repeat,
         rew_hidden_dim, rew_hidden_depth, rew_lr,
         done_hidden_dim, done_hidden_depth, done_lr,
         done_ctrl_accum,
         model_update_repeat,
         model_free_update_repeat,
         horizon,
-        act_with_horizon, warmup_steps,
+        warmup_steps,
         det_suffix,
     ):
         super().__init__()
@@ -71,9 +67,6 @@ class SACMVEAgent(Agent):
         self.device = torch.device(device)
         self.num_train_steps = num_train_steps
         self.det_suffix = det_suffix
-
-        self.train_with_policy_mean = train_with_policy_mean
-        self.train_action_noise = train_action_noise
 
         self.discount = discount
         self.discount_horizon = torch.tensor(
@@ -89,16 +82,15 @@ class SACMVEAgent(Agent):
         self.model_update_freq = model_update_freq
         self.model_free_update_repeat = model_free_update_repeat
 
-        self.rew_obs_noise = rew_obs_noise
-        self.done_obs_noise = done_obs_noise
-        self.done_obs_repeat = done_obs_repeat
-
         self.horizon = horizon
-        self.act_with_horizon = act_with_horizon
 
         self.warmup_steps = warmup_steps
 
-        self.temp = hydra.utils.instantiate(temp_cfg)
+        if temp_cfg is not None:
+            self.temp = hydra.utils.instantiate(temp_cfg)
+        else:
+            # TODO
+            self.temp = get_best_temp(env_name, horizon)
 
         self.dx = hydra.utils.instantiate(dx_cfg).to(self.device)
 
@@ -119,7 +111,6 @@ class SACMVEAgent(Agent):
         self.actor_opt = torch.optim.Adam(
             params, lr=actor_lr, betas=actor_betas)
         self.actor_update_freq = actor_update_freq
-        self.actor_clip_grad_norm = actor_clip_grad_norm
         self.actor_mve = actor_mve
         self.actor_detach_rho = actor_detach_rho
 
@@ -135,7 +126,6 @@ class SACMVEAgent(Agent):
                 self.critic.parameters(), lr=critic_lr)
             self.critic_tau = critic_tau
             self.critic_target_update_freq = critic_target_update_freq
-            self.critic_clip_grad_norm = critic_clip_grad_norm
 
         self.critic_target_mve = critic_target_mve
         if critic_target_mve:
@@ -156,34 +146,18 @@ class SACMVEAgent(Agent):
 
 
     def reset(self):
-        self.next_actions = []
+        pass
 
 
     def act(self, obs, sample=False):
         obs = torch.FloatTensor(obs).to(self.device)
         obs = obs.unsqueeze(dim=0)
 
-        if not sample or self.train_with_policy_mean:
-            # Assume we never act with the horion if we aren't sampling
-            # TODO: Could add an option for acting with the horizon and not sampling
+        if not sample:
             action, _, _ = self.actor(obs, compute_pi=False, compute_log_pi=False)
         else:
-            if not self.act_with_horizon or self.last_step < self.warmup_steps:
-                with torch.no_grad():
-                    _, action, _ = self.actor(obs, compute_log_pi=False)
-            else:
-                if len(self.next_actions) > 0:
-                    action = self.next_actions.pop(0).squeeze(0)
-                else:
-                    with torch.no_grad():
-                        actions, _, _ = self.dx.unroll_policy(
-                            obs, self.actor, sample=True)
-                    action = actions[0]
-                    actions = list(actions.split(split_size=1))
-                    self.next_actions = actions[1:]
-
-        if self.train_action_noise > 0.0:
-            action += self.train_action_noise*torch.randn_like(action)
+            with torch.no_grad():
+                _, action, _ = self.actor(obs, compute_log_pi=False)
 
         action = action.clamp(*self.action_range)
         assert action.ndim == 2 and action.shape[0] == 1
@@ -249,9 +223,6 @@ class SACMVEAgent(Agent):
 
         self.actor_opt.zero_grad()
         actor_loss.backward()
-        if self.actor_clip_grad_norm is not None:
-            torch.nn.utils.clip_grad_norm_(
-                self.actor.parameters(), self.actor_clip_grad_norm)
         self.actor_opt.step()
 
         self.actor.log(logger, step)
@@ -300,9 +271,6 @@ class SACMVEAgent(Agent):
         self.critic_opt.zero_grad()
         Q_loss.backward()
         logger.log('train_critic/Q_loss', Q_loss, step)
-        if self.critic_clip_grad_norm is not None:
-            torch.nn.utils.clip_grad_norm_(
-                self.critic.parameters(), self.critic_clip_grad_norm)
         self.critic_opt.step()
 
         self.critic.log(logger, step)
@@ -351,9 +319,6 @@ class SACMVEAgent(Agent):
         assert obs.dim() == 2
         batch_size, _ = obs.shape
 
-        if self.rew_obs_noise > 0.:
-            obs += self.rew_obs_noise*torch.randn_like(obs)
-
         xu = torch.cat((obs, action), dim=1)
         pred_reward = self.rew(xu)
         assert pred_reward.size() == reward.size()
@@ -371,14 +336,6 @@ class SACMVEAgent(Agent):
 
         done = 1.-not_done
         xu = torch.cat((obs, action), dim=1)
-
-        if self.done_obs_noise > 0.:
-            I = (done == 1.).squeeze()
-            xu_aug = xu[I].repeat(self.done_obs_repeat,1)
-            xu_aug += self.done_obs_noise*torch.randn_like(xu_aug)
-            xu = torch.cat((xu, xu_aug), dim=0)
-            done_aug = torch.ones(I.sum()*self.done_obs_repeat, 1, device=done.device)
-            done = torch.cat((done, done_aug), dim=0)
 
         pred_logits = self.done(xu)
         n_done = torch.sum(done)

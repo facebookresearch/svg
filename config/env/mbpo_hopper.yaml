@@ -1,5 +1,5 @@
 env_name: mbpo_hopper
-num_train_steps: 5e5
+num_train_steps: 1e6
 
 # Environment-specific overrides:
 learn_temp:

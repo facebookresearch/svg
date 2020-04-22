@@ -105,6 +105,7 @@ class Workspace(object):
         self.logger.dump(self.step)
         return np.mean(episode_rewards)
 
+
     def run(self):
         assert not self.done
         assert self.episode_reward == 0.0

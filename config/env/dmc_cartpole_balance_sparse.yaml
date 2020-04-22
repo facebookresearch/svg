@@ -1,2 +1,0 @@
-env_name: dmc_cartpole_balance_sparse
-num_train_steps: 1e6

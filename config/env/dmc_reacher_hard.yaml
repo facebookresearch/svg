@@ -1,2 +1,0 @@
-env_name: dmc_reacher_hard
-num_train_steps: 1e6

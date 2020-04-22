@@ -14,7 +14,7 @@ setproctitle('mve')
 import hydra
 
 from mve.video import VideoRecorder
-from mve import utils
+from mve import agent, utils, temp, dx, actor, critic
 from mve.logger import Logger
 from mve.replay_buffer import ReplayBuffer
 
@@ -103,6 +103,7 @@ class Workspace(object):
         return np.mean(episode_rewards)
 
 
+    # @profile
     def run(self):
         assert not self.done
         assert self.episode_reward == 0.0

@@ -24,11 +24,10 @@ def main():
     assert not os.path.exists(sweep_dir)
     os.makedirs(sweep_dir)
 
-    # env_cfgs = ['${ac_mbpo_cheetah_long}', '${ac_mbpo_walker2d_long}', '${ac_mbpo_humanoid}']
     envs = ['mbpo_humanoid', 'mbpo_ant']
 
     n_sample = 20
-    n_seed = 5
+    n_seed = 4
 
     global_i = 1
     for sample in range(n_sample):

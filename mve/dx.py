@@ -44,15 +44,21 @@ class SeqDx(nn.Module):
 
         self.apply(utils.weight_init) # Don't apply this to the recurrent unit.
 
-        if rec_type == 'LSTM':
-            self.rec = nn.LSTM(rec_latent_dim, rec_latent_dim, num_layers=rec_num_layers)
-        elif rec_type == 'GRU':
-            self.rec = nn.GRU(rec_latent_dim, rec_latent_dim, num_layers=rec_num_layers)
-            # self.rec_init = utils.mlp(obs_dim, 1024, rec_num_layers*rec_latent_dim, 2)
-        else:
-            assert False
 
-        params = utils.get_params([self.xu_enc, self.x_dec, self.rec])
+        mods = [self.xu_enc, self.x_dec]
+
+        if rec_num_layers > 0:
+            if rec_type == 'LSTM':
+                self.rec = nn.LSTM(
+                    rec_latent_dim, rec_latent_dim, num_layers=rec_num_layers)
+            elif rec_type == 'GRU':
+                self.rec = nn.GRU(
+                    rec_latent_dim, rec_latent_dim, num_layers=rec_num_layers)
+            else:
+                assert False
+            mods.append(self.rec)
+
+        params = utils.get_params(mods)
         self.opt = torch.optim.Adam(params, lr=lr)
 
     def __getstate__(self):
@@ -88,7 +94,8 @@ class SeqDx(nn.Module):
         if self.freeze_dims is not None:
             obs_frozen = init_x[:, self.freeze_dims]
 
-        h = self.init_hidden_state(init_x)
+        if self.rec_num_layers > 0:
+            h = self.init_hidden_state(init_x)
 
         pred_xs = []
         us = []
@@ -111,7 +118,10 @@ class SeqDx(nn.Module):
 
             xut = torch.cat((xt, ut), dim=1)
             xu_emb = self.xu_enc(xut).unsqueeze(0)
-            xtp1_emb, h = self.rec(xu_emb, h)
+            if self.rec_num_layers > 0:
+                xtp1_emb, h = self.rec(xu_emb, h)
+            else:
+                xtp1_emb = xu_emb
             xtp1 = xt + self.x_dec(xtp1_emb.squeeze(0))
             if self.freeze_dims is not None:
                 xtp1[:,self.freeze_dims] = obs_frozen
@@ -150,7 +160,8 @@ class SeqDx(nn.Module):
         if self.freeze_dims is not None:
             obs_frozen = x[:, self.freeze_dims]
 
-        h = self.init_hidden_state(x)
+        if self.rec_num_layers > 0:
+            h = self.init_hidden_state(x)
 
         pred_xs = []
         xt = x
@@ -162,7 +173,10 @@ class SeqDx(nn.Module):
 
             xut = torch.cat((xt, ut), dim=1)
             xu_emb = self.xu_enc(xut).unsqueeze(0)
-            xtp1_emb, h = self.rec(xu_emb, h)
+            if self.rec_num_layers > 0:
+                xtp1_emb, h = self.rec(xu_emb, h)
+            else:
+                xtp1_emb = xu_emb
             xtp1 = xt + self.x_dec(xtp1_emb.squeeze(0))
             if self.freeze_dims is not None:
                 xtp1[:,self.freeze_dims] = obs_frozen

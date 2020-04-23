@@ -4,7 +4,7 @@ defaults:
 
 experiment: test
 
-replay_buffer_capacity: max(${num_train_steps}, 1e6)
+replay_buffer_capacity: min(${num_train_steps}, 1e6)
 # replay_buffer_capacity: ${num_train_steps}
 
 num_seed_steps: 1000

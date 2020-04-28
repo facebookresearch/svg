@@ -18,10 +18,13 @@ from mve import agent, utils, temp, dx, actor, critic
 from mve.logger import Logger
 from mve.replay_buffer import ReplayBuffer
 
-if os.isatty(sys.stdout.fileno()):
-    from IPython.core import ultratb
-    sys.excepthook = ultratb.FormattedTB(
-        mode='Verbose', color_scheme='Linux', call_pdb=1)
+try:
+    if os.isatty(sys.stdout.fileno()):
+        from IPython.core import ultratb
+        sys.excepthook = ultratb.FormattedTB(
+            mode='Verbose', color_scheme='Linux', call_pdb=1)
+except:
+    pass
 
 
 class Workspace(object):

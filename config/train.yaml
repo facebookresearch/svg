@@ -1,6 +1,6 @@
 defaults:
     - env: mbpo_ant
-    - hydra/launcher: submitit
+#    - hydra/launcher: submitit
 
 experiment: test
 
@@ -151,15 +151,15 @@ hydra:
     sweep:
         dir: ./exp/${now:%Y.%m.%d}/${now:%H%M}_${agent.name}_${experiment}
         subdir: ${hydra.job.num}
-    launcher:
-        # Defaults: https://github.com/fairinternal/hydra-fair-plugins/blob/master/plugins/hydra-submitit/hydra_plugins/submitit/conf/hydra/launcher/submitit.yaml
-        params:
-            queue_parameters:
-                slurm:
-                    max_num_timeout: 100000
-                    time: 4319
-                    partition: learnfair
-                    # partition: priority
-                    # comment: For ICML
-
-        mem_limit: 64
+#    launcher:
+#        # Defaults: https://github.com/fairinternal/hydra-fair-plugins/blob/master/plugins/hydra-submitit/hydra_plugins/submitit/conf/hydra/launcher/submitit.yaml
+#        params:
+#            queue_parameters:
+#                slurm:
+#                    max_num_timeout: 100000
+#                    time: 4319
+#                    partition: learnfair
+#                    # partition: priority
+#                    # comment: For ICML
+#
+#        mem_limit: 64

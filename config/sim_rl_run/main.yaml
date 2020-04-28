@@ -1,0 +1,9 @@
+ckpt_dir: sac_walker2d
+exp_name: test
+log_dir: ${ckpt_dir}/${exp_name}/${network.name}_${model_type}
+
+max_transitions:  # Set this to O(10k) for fast test runs
+seq_len: 1        # Subsequence length for model training and evaluation
+num_evals: 5      # How many times to train and evaluate the model in a sim run
+num_seeds: 3      # How many times to repeat the sim
+model_type: prob  # 'prob' for probabilistic model, 'det' for deterministic

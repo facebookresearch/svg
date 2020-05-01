@@ -43,51 +43,54 @@ def split_buffer(replay_buffer, max_transitions):
 
 def simulate_rl_run(model, dataset, fit_params, train_seqs, test_data, num_evals):
     eval_freq = len(train_seqs) // num_evals
-    run_metrics = dict(holdout_loss=[], holdout_mse=[],
-                       test_loss=[], test_mse=[], num_train=[])
+    run_metrics = dict(train_loss=[], num_train=[],
+                       holdout_loss=[], holdout_mse=[],
+                       test_loss=[], test_mse=[])
     model_checkpoints = []
     num_train = 0
     for i, seq_pair in enumerate(train_seqs):
         dataset.add_seq(*seq_pair)
         num_train += seq_pair[0].shape[0]
         if (i + 1) % eval_freq == 0:
+            run_metrics['num_train'].append(num_train)
             fit_metrics = model.fit(dataset, fit_params)
             eval_metrics = model.validate(*test_data)
+            run_metrics['train_loss'].append(fit_metrics['train_loss'][-1])
             run_metrics['holdout_loss'].append(fit_metrics['holdout_loss'][-1])
             run_metrics['holdout_mse'].append(fit_metrics['holdout_mse'])
             run_metrics['test_loss'].append(eval_metrics['val_loss'])
             run_metrics['test_mse'].append(eval_metrics['val_mse'])
-            run_metrics['num_train'].append(num_train)
+
             model_checkpoints.append(deepcopy(model.state_dict()))
 
     return run_metrics, model_checkpoints
 
 
 def experiment(ckpt, cfg):
+    replay_buffer = ckpt.replay_buffer
     env = ckpt.env
     obs_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
-    input_dim = obs_dim + action_dim
-    target_dim = 1 + obs_dim
-    replay_buffer = ckpt.replay_buffer
 
-    network_class = getattr(model_zoo.architecture, cfg.network.name)
-    network_kwargs = dict(cfg.network.kwargs)
-    det_model = (cfg.model_type == 'det')
+    cfg.reg_model.params['input_dim'] = obs_dim + action_dim
+    cfg.reg_model.params['target_dim'] = 1 + obs_dim
+    # cfg.reg_model.params['model_class'] = cfg.network.name
+    # cfg.reg_model.params['model_kwargs'] = dict(cfg.network.kwargs)
 
     results = []
     for trial in range(cfg.num_seeds):
         print(f"--- TRIAL {trial + 1} ---")
         # format buffer data
-        dataset = SeqDataset(train_seq_len=cfg.seq_len, holdout_ratio=0.1)
+        dataset = SeqDataset(cfg.train_seq_len, holdout_ratio=cfg.holdout_ratio)
         train_seqs, test_seqs = split_buffer(replay_buffer, max_transitions=cfg.max_transitions)
         test_input_seqs = [seq_pair[0] for seq_pair in test_seqs]
         test_target_seqs = [seq_pair[1] for seq_pair in test_seqs]
-        test_data = format_seqs(test_input_seqs, test_target_seqs, cfg.seq_len, 'sequential')
+        test_data = format_seqs(test_input_seqs, test_target_seqs, cfg.test_seq_len, 'sequential')
 
-        # create model, run trial
-        model = MaxLikelihoodRegression(input_dim, target_dim, network_class,
-                                        network_kwargs, deterministic=det_model)
+        # create reg_model, run trial
+        # model = MaxLikelihoodRegression(input_dim, target_dim, network_class,
+        #                                 network_kwargs, deterministic=det_model)
+        model = hydra.utils.instantiate(cfg.reg_model)
         trial_metrics, _ = simulate_rl_run(model, dataset, cfg.network.fit_params, train_seqs, test_data, cfg.num_evals)
         results.append(trial_metrics)
     results = {key: np.stack([d[key] for d in results]) for key in results[0].keys()}
@@ -97,6 +100,9 @@ def experiment(ckpt, cfg):
 
 @hydra.main(config_path='../config/sim_rl_run/main.yaml', strict=True)
 def main(cfg):
+    if torch.cuda.is_available():
+        torch.set_default_tensor_type(torch.cuda.FloatTensor)
+
     # set up checkpoint, log paths
     root_dir = Path(hydra.utils.get_original_cwd()) / 'exp'
     ckpt_dir = root_dir / cfg.ckpt_dir

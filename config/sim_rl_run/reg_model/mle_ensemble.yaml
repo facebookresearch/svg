@@ -1,0 +1,11 @@
+reg_model:
+  name: mle_ensemble
+  class: model_zoo.ensemble.MaxLikelihoodRegEnsemble
+  params:
+    input_dim: ???
+    target_dim: ???
+    num_components: 3
+    num_elites: 3
+    model_class: ${network.name}
+    model_kwargs: ${network.kwargs}
+    mode: 'det'

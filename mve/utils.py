@@ -50,7 +50,7 @@ def make_norm_env(cfg):
         env.reward_range = env._env.reward_range
         env.spec = env._env.spec
         env.unwrapped = env._env.unwrapped
-        env._configured = env._env._configured
+        # env._configured = env._env._configured
         env.close = env._env.close
         env = RescaleAction(env, -1., 1.)
         # assert np.all(env._env.action_space.high == env._env.action_space.high)
@@ -387,8 +387,8 @@ def squash(mu, pi, log_pi):
 class MLP(nn.Module):
     def __init__(self,
                  input_dim,
-                 hidden_dim,
                  output_dim,
+                 hidden_dim,
                  hidden_depth,
                  output_mod=None):
         super().__init__()

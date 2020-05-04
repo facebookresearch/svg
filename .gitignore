@@ -2,3 +2,6 @@ exp
 .ipynb_checkpoints
 *.txt
 *.lprof
+*.csv
+
+data/fig

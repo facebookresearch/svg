@@ -24,7 +24,10 @@ def main():
     assert not os.path.exists(sweep_dir)
     os.makedirs(sweep_dir)
 
-    envs = ['mbpo_humanoid', 'mbpo_ant']
+    envs = ['poplin_ant', 'poplin_cheetah', 'poplin_pets_cheetah',
+            'poplin_swimmer', 'poplin_walker2d']
+    # envs = ['mbpo_cheetah', 'mbpo_hopper', 'mbpo_walker2d']
+    # envs = ['mbpo_humanoid', 'mbpo_ant']
 
     n_sample = 20
     n_seed = 4
@@ -50,6 +53,8 @@ def main():
             overrides.add('learn_temp.params.init_targ_entr', [init_targ_entr])
             overrides.add('learn_temp.params.final_targ_entr', [final_targ_entr])
             overrides.add('learn_temp.params.entr_decay_factor', [gamma])
+            overrides.add('hydra.launcher.params.queue_parameters.slurm.partition',
+                          ['scavenge'])
 
             overrides.add('hydra.sweep.dir', [sweep_dir])
             overrides.add('hydra.sweep.subdir', [str(global_i)+'.${seed}'])

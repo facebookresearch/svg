@@ -6,7 +6,7 @@ from pprint import pprint
 
 from omegaconf import OmegaConf
 
-def plot_ac_exp(root, print_cfg=False, print_overrides=True):
+def plot_ac_exp(root, print_cfg=False, print_overrides=True, Qmax=None):
     config = OmegaConf.load(f'{root}/.hydra/config.yaml')
     df = pd.read_csv(f'{root}/train.csv')
     N_smooth = 200
@@ -29,10 +29,10 @@ def plot_ac_exp(root, print_cfg=False, print_overrides=True):
     ax.set_xlabel('1k Iteration')
     ax.set_title('Actor Loss')
 
-    if 'critic_loss' in df:
+    if 'critic_Q_loss' in df:
         ax = axs[1]
         ax.plot(*get_smooth('critic_Q_loss'))
-        ax.set_ylim(0, None)
+        ax.set_ylim(0, Qmax)
         ax.set_xlabel('1k Iteration')
         ax.set_ylabel('Critic Loss')
 

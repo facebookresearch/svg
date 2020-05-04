@@ -19,10 +19,11 @@ def main():
     parser.add_argument('--dry', action='store_true')
     args = parser.parse_args()
 
-    now = datetime.now()
-    sweep_dir = './exp/'+now.strftime("%Y.%m.%d/%H%M") + '_' + args.experiment
-    assert not os.path.exists(sweep_dir)
-    os.makedirs(sweep_dir)
+    if not args.dry:
+        now = datetime.now()
+        sweep_dir = './exp/'+now.strftime("%Y.%m.%d/%H%M") + '_' + args.experiment
+        assert not os.path.exists(sweep_dir)
+        os.makedirs(sweep_dir)
 
     envs = ['poplin_ant', 'poplin_cheetah', 'poplin_pets_cheetah',
             'poplin_swimmer', 'poplin_walker2d']

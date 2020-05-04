@@ -216,6 +216,8 @@ class ReplayBuffer(object):
 
         for chunk in chunks:
             global_start, global_end = parse_chunk(chunk)
+            if global_start >= self.global_idx:
+                continue
             start = global_start - global_beginning
             end = global_end - global_beginning
             if end <= 0:

@@ -270,6 +270,66 @@ class SACMVEAgent(Agent):
 
         self.critic.log(logger, step)
 
+    def update_critic_mve(self, first_xs, first_us, next_xs, logger, step):
+        assert first_xs.dim() == 2
+        assert first_us.dim() == 2
+        assert next_xs.dim() == 2
+        n_batch = next_xs.size(0)
+
+        # unroll policy, concatenate obs and actions
+        pred_us, log_p_us, pred_xs = self.dx.unroll_policy(
+            next_xs, self.actor, sample=True, detach_xt=self.actor_detach_rho)
+        all_obs = torch.cat((first_xs.unsqueeze(0), next_xs.unsqueeze(0), pred_xs))
+        all_us = torch.cat([first_us.unsqueeze(0), pred_us])
+        xu = torch.cat([all_obs, all_us], dim=2)
+        horizon_len = all_obs.size(0) - 1  # H
+
+        # get immediate rewards, termination probs
+        dones = self.done(xu).sigmoid().squeeze(dim=2)  # t from -1 to H
+        not_dones = 1. - dones
+        not_dones = utils.accum_prod(not_dones)
+        rewards = self.rew(xu[:-1]).squeeze(2)  # t from -1 to H - 1
+
+        # get lower-triangular reward discount factor matrix
+        discount = torch.tensor(self.discount, device=rewards.device)
+        discount_exps = torch.stack([torch.arange(-i, -i + horizon_len) for i in range(horizon_len)], dim=1)
+        r_discounts = discount ** discount_exps.to(rewards.device)
+        r_discounts = r_discounts.tril().unsqueeze(-1)
+
+        # get discounted sums of soft rewards (t from -1 to H - 1 (k from t to H - 1))
+        alpha = self.temp.alpha.detach()
+        soft_rewards = (not_dones[:-1] * rewards) - (discount * alpha * not_dones[1:] * log_p_us)
+        disc_soft_rewards = (r_discounts * soft_rewards.expand(horizon_len, -1, -1)).sum(0)
+
+        # get target q-values, final critic targets
+        target_q1, target_q2 = self.critic_target(all_obs[-1], all_us[-1])
+        target_qs = torch.min(target_q1, target_q2).squeeze(-1).expand(horizon_len, -1)
+        q_discounts = discount ** torch.arange(horizon_len, 0, step=-1).to(target_qs.device)
+        target_qs = target_qs * (not_dones[-1].unsqueeze(0) * q_discounts.unsqueeze(-1))
+        critic_targets = (disc_soft_rewards + target_qs).detach()
+
+        # get predicted q-values
+        with utils.eval_mode(self.critic):
+            q1, q2 = self.critic(all_obs[:-1].flatten(end_dim=-2),
+                                 all_us[:-1].flatten(end_dim=-2))
+            q1, q2 = q1.reshape(horizon_len, n_batch), q2.reshape(horizon_len, n_batch)
+        assert q1.size() == critic_targets.size()
+        assert q2.size() == critic_targets.size()
+
+        # update critics
+        Q_loss = F.mse_loss(q1, critic_targets) + \
+                 F.mse_loss(q2, critic_targets)
+
+        logger.log('train_critic/Q_loss', Q_loss, step)
+        current_Q = torch.min(q1, q2)
+        logger.log('train_critic/value', current_Q.mean(), step)
+
+        self.critic_opt.zero_grad()
+        Q_loss.backward()
+        logger.log('train_critic/Q_loss', Q_loss, step)
+        self.critic_opt.step()
+
+        self.critic.log(logger, step)
 
     # @profile
     def update(self, replay_buffer, logger, step):
@@ -292,10 +352,11 @@ class SACMVEAgent(Agent):
               replay_buffer.sample(self.step_batch_size)
 
             if self.critic is not None:
-                self.update_critic(
-                    obs, next_obs,
-                    action, reward, not_done_no_max, logger, step
-                )
+                # self.update_critic(
+                #     obs, next_obs,
+                #     action, reward, not_done_no_max, logger, step
+                # )
+                self.update_critic_mve(obs, action, next_obs, logger, step)
 
             if step % self.actor_update_freq == 0:
                 self.update_actor_and_alpha(obs, logger, step)

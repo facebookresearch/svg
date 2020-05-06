@@ -67,6 +67,7 @@ agent:
     critic_tau: 0.005
     critic_target_update_freq: 1
     critic_target_mve: false
+    full_target_mve: False
 
     discount: 0.99
     seq_batch_size: 512

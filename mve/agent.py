@@ -41,6 +41,7 @@ class SACMVEAgent(Agent):
         critic_cfg, critic_lr, critic_tau,
         critic_target_update_freq,
         critic_target_mve,
+        full_target_mve,
         discount,
         seq_batch_size, seq_train_length,
         step_batch_size,
@@ -123,8 +124,12 @@ class SACMVEAgent(Agent):
             self.critic_target_update_freq = critic_target_update_freq
 
         self.critic_target_mve = critic_target_mve
-        if critic_target_mve:
+        self.full_target_mve = full_target_mve
+        if critic_target_mve or full_target_mve:
             assert self.critic is not None
+
+        if full_target_mve:
+            assert ~critic_target_mve
 
         self.train()
         self.last_step = 0
@@ -174,8 +179,8 @@ class SACMVEAgent(Agent):
 
         rewards = not_dones * self.rew(xu).squeeze(2)
         if critic is not None:
-            with utils.eval_mode(self.critic):
-                q1, q2 = self.critic(all_obs[-1], us[-1])
+            with utils.eval_mode(critic):
+                q1, q2 = critic(all_obs[-1], us[-1])
             q = torch.min(q1, q2).reshape(n_batch)
             rewards[-1] = last_not_dones * q
 
@@ -270,10 +275,13 @@ class SACMVEAgent(Agent):
 
         self.critic.log(logger, step)
 
-    def update_critic_mve(self, first_xs, first_us, next_xs, logger, step):
+    def update_critic_mve(self, first_xs, first_us, first_rs, next_xs, first_not_dones, logger, step):
+        """ MVE critic loss from Feinberg et al (2015) """
         assert first_xs.dim() == 2
         assert first_us.dim() == 2
+        assert first_rs.dim() == 2
         assert next_xs.dim() == 2
+        assert first_not_dones.dim() == 2
         n_batch = next_xs.size(0)
 
         # unroll policy, concatenate obs and actions
@@ -284,11 +292,21 @@ class SACMVEAgent(Agent):
         xu = torch.cat([all_obs, all_us], dim=2)
         horizon_len = all_obs.size(0) - 1  # H
 
-        # get immediate rewards, termination probs
-        dones = self.done(xu).sigmoid().squeeze(dim=2)  # t from -1 to H
-        not_dones = 1. - dones
-        not_dones = utils.accum_prod(not_dones)
-        rewards = self.rew(xu[:-1]).squeeze(2)  # t from -1 to H - 1
+        # get immediate rewards
+        pred_rs = self.rew(xu[1:-1])  # t from 0 to H - 1
+        rewards = torch.cat([first_rs.unsqueeze(0), pred_rs]).squeeze(2)
+        rewards = rewards.unsqueeze(1).expand(-1, horizon_len, -1)
+        log_p_us = log_p_us.unsqueeze(1).expand(-1, horizon_len, -1)
+
+        # get not dones factor matrix, rows --> t, cols --> k
+        first_not_dones = first_not_dones.unsqueeze(0)
+        init_not_dones = torch.ones_like(first_not_dones)  # we know the first states are not terminal
+        pred_not_dones = 1. - self.done(xu[2:]).sigmoid()  # t from 1 to H
+        not_dones = torch.cat([init_not_dones, first_not_dones, pred_not_dones]).squeeze(2)
+        not_dones = not_dones.unsqueeze(1).repeat(1, horizon_len, 1)
+        triu_rows, triu_cols = torch.triu_indices(row=horizon_len + 1, col=horizon_len, offset=1, device=not_dones.device)
+        not_dones[triu_rows, triu_cols, :] = 1.
+        not_dones = not_dones.cumprod(dim=0).detach()
 
         # get lower-triangular reward discount factor matrix
         discount = torch.tensor(self.discount, device=rewards.device)
@@ -299,14 +317,14 @@ class SACMVEAgent(Agent):
         # get discounted sums of soft rewards (t from -1 to H - 1 (k from t to H - 1))
         alpha = self.temp.alpha.detach()
         soft_rewards = (not_dones[:-1] * rewards) - (discount * alpha * not_dones[1:] * log_p_us)
-        disc_soft_rewards = (r_discounts * soft_rewards.expand(horizon_len, -1, -1)).sum(0)
+        soft_rewards = (r_discounts * soft_rewards).sum(0)
 
         # get target q-values, final critic targets
         target_q1, target_q2 = self.critic_target(all_obs[-1], all_us[-1])
         target_qs = torch.min(target_q1, target_q2).squeeze(-1).expand(horizon_len, -1)
         q_discounts = discount ** torch.arange(horizon_len, 0, step=-1).to(target_qs.device)
-        target_qs = target_qs * (not_dones[-1].unsqueeze(0) * q_discounts.unsqueeze(-1))
-        critic_targets = (disc_soft_rewards + target_qs).detach()
+        target_qs = target_qs * (not_dones[-1] * q_discounts.unsqueeze(-1))
+        critic_targets = (soft_rewards + target_qs).detach()
 
         # get predicted q-values
         with utils.eval_mode(self.critic):
@@ -317,8 +335,9 @@ class SACMVEAgent(Agent):
         assert q2.size() == critic_targets.size()
 
         # update critics
-        Q_loss = F.mse_loss(q1, critic_targets) + \
-                 F.mse_loss(q2, critic_targets)
+        q1_loss = (not_dones[:-1, 0] * (q1 - critic_targets).pow(2)).mean()
+        q2_loss = (not_dones[:-1, 0] * (q2 - critic_targets).pow(2)).mean()
+        Q_loss = q1_loss + q2_loss
 
         logger.log('train_critic/Q_loss', Q_loss, step)
         current_Q = torch.min(q1, q2)
@@ -352,11 +371,13 @@ class SACMVEAgent(Agent):
               replay_buffer.sample(self.step_batch_size)
 
             if self.critic is not None:
-                # self.update_critic(
-                #     obs, next_obs,
-                #     action, reward, not_done_no_max, logger, step
-                # )
-                self.update_critic_mve(obs, action, next_obs, logger, step)
+                if self.full_target_mve:
+                    self.update_critic_mve(obs, action, reward, next_obs, not_done_no_max, logger, step)
+                else:
+                    self.update_critic(
+                        obs, next_obs,
+                        action, reward, not_done_no_max, logger, step
+                    )
 
             if step % self.actor_update_freq == 0:
                 self.update_actor_and_alpha(obs, logger, step)

@@ -238,6 +238,7 @@ def main(cfg):
     from train import Workspace as W
     fname = os.getcwd() + '/latest.pkl'
     if os.path.exists(fname):
+        print(f'Resuming fom {fname}')
         with open(fname, 'rb') as f:
             workspace = pkl.load(f)
     else:

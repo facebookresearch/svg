@@ -1,6 +1,6 @@
 defaults:
     - env: mbpo_ant
-#    - hydra/launcher: submitit
+    - hydra/launcher: submitit
 
 experiment: test
 
@@ -9,9 +9,9 @@ replay_buffer_capacity: min(${num_train_steps}, 1e6)
 
 num_seed_steps: 1000
 
-eval_freq: 10000
+eval_freq: ?? # Over-ridden by env
 num_eval_episodes: 10
-fixed_eval: true
+fixed_eval: false
 
 normalize_obs: true
 

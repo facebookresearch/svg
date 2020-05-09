@@ -1,9 +1,15 @@
 env_name: mbpo_cheetah
-num_train_steps: 5e6
+num_train_steps: 2e6
+eval_freq: 25000
 
 # Environment-specific overrides:
 learn_temp:
   params:
-    init_targ_entr: -2
-    final_targ_entr: -2
-    entr_decay_factor: 1.0
+    init_targ_entr: -1
+    final_targ_entr: -16
+    entr_decay_factor: 0.5
+
+agent:
+  params:
+    horizon: 3
+    warmup_steps: 10000

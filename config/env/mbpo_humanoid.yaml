@@ -1,12 +1,16 @@
 env_name: mbpo_humanoid
-# num_train_steps: 3e6
-num_train_steps: 1e7
+num_train_steps: 5e6
 eval_freq: 25000
 # replay_buffer_capacity: 1e6
 
 # Environment-specific overrides:
 learn_temp:
   params:
-    init_targ_entr: -1
-    final_targ_entr: -1
+    init_targ_entr: -2
+    final_targ_entr: -2
     entr_decay_factor: 1.0
+
+agent:
+  params:
+    horizon: 5
+    warmup_steps: 10000

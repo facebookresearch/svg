@@ -4,6 +4,8 @@ import torch
 import os
 import copy
 
+from sortedcontainers import SortedSet
+
 import pickle as pkl
 
 from . import utils
@@ -19,6 +21,7 @@ class ReplayBuffer(object):
         self.pixels = len(obs_shape) > 1
         self.empty_data()
 
+        self.done_idxs = SortedSet()
         self.global_idx = 0
         self.global_last_save = 0
 
@@ -57,6 +60,7 @@ class ReplayBuffer(object):
         self.idx = 0
         self.full = False
         self.payload = []
+        self.done_idxs = None
 
 
     def __len__(self):
@@ -82,6 +86,12 @@ class ReplayBuffer(object):
 
         if self.normalize_obs:
             self.welford.add_data(obs)
+
+        # if self.full and not self.not_dones[self.idx]:
+        if done:
+            self.done_idxs.add(self.idx)
+        elif self.full:
+            self.done_idxs.discard(self.idx)
 
         np.copyto(self.obses[self.idx], obs)
         np.copyto(self.actions[self.idx], action)
@@ -127,46 +137,28 @@ class ReplayBuffer(object):
         last_idx = self.capacity if self.full else self.idx
         last_idx -= T
 
-        # Keeping the old inefficient but more readable version
-        # here just in case:
-        #
-        # idxs = []
-        # assert last_idx + 1 > batch_size, "Not enough transitions"
-        # while len(idxs) < batch_size:
-        #     i = np.random.randint(0, last_idx)
-        #     if i in idxs:
-        #         continue
-        #     if np.all(self.not_dones[i:i + T] == 1.):
-        #         idxs.append(i)
-        # idxs = np.array(idxs)
-
-        done_idxs, _ = np.where(1.-self.not_dones[:last_idx])
-        done_idxs = np.concatenate((done_idxs, [last_idx]))
-        n_done = len(done_idxs)
-
         # raw here means the "coalesced" indices that map to valid
         # indicies that are more than T steps away from a done
-        done_idxs_raw = []
-        for i in range(n_done):
-            done_idxs_raw.append(done_idxs[i] - (i+1)*T)
-        done_idxs_raw = np.array(done_idxs_raw)
+        done_idxs_sorted = np.array(list(self.done_idxs) + [last_idx])
+        n_done = len(done_idxs_sorted)
+        done_idxs_raw = done_idxs_sorted - np.arange(1, n_done+1)*T
 
-        def raw_to_orig(idx):
-            j = np.searchsorted(done_idxs_raw, idx)
-            offset = done_idxs_raw[j] - idx + T
-            return done_idxs[j] - offset
-
-        idxs_raw = npr.choice(
-            last_idx-(T+1)*len(done_idxs), size=batch_size, replace=False)
-        idxs = np.vectorize(raw_to_orig)(idxs_raw)
+        samples_raw = npr.choice(
+            last_idx-(T+1)*n_done, size=batch_size,
+            replace=True # for speed
+        )
+        samples_raw = sorted(samples_raw)
+        js = np.searchsorted(done_idxs_raw, samples_raw)
+        offsets = done_idxs_raw[js] - samples_raw + T
+        start_idxs = done_idxs_sorted[js] - offsets
 
         obses, actions, rewards = [], [], []
 
         for t in range(T):
-            obses.append(self.obses[idxs + t])
-            actions.append(self.actions[idxs + t])
-            rewards.append(self.rewards[idxs + t])
-            assert np.all(self.not_dones[idxs + t])
+            obses.append(self.obses[start_idxs + t])
+            actions.append(self.actions[start_idxs + t])
+            rewards.append(self.rewards[start_idxs + t])
+            assert np.all(self.not_dones[start_idxs + t])
 
         obses = np.stack(obses)
         actions = np.stack(actions)
@@ -246,3 +238,6 @@ class ReplayBuffer(object):
         if self.full:
             assert self.idx == self.capacity
             self.idx = 0
+
+        last_idx = self.capacity if self.full else self.idx
+        self.done_idxs = SortedSet(np.where(1.-self.not_dones[:last_idx])[0])

@@ -135,6 +135,13 @@ class SACMVEAgent(Agent):
         self.last_step = 0
 
 
+    def __setstate__(self, d):
+        self.__dict__ = d
+
+        if 'full_target_mve' not in d:
+            self.full_target_mve = False
+
+
     def train(self, training=True):
         self.training = training
         self.dx.train(training)
@@ -215,8 +222,7 @@ class SACMVEAgent(Agent):
             rewards, first_log_p, total_log_p_us = self.expand_Q(
                 xs, self.critic, sample=True, discount=True)
             assert total_log_p_us.size() == rewards.size()
-            alpha_det = self.temp.alpha.detach()
-            actor_loss = ((alpha_det * total_log_p_us - rewards)/self.horizon).mean()
+            actor_loss = -(rewards/self.horizon).mean()
 
         logger.log('train_actor/loss', actor_loss, step)
         logger.log('train_actor/entropy', -first_log_p.mean(), step)

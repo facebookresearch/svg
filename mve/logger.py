@@ -66,7 +66,8 @@ class MetersGroup(object):
         self._csv_file_name = file_name + '.csv'
         self._formating = formating
         self._meters = defaultdict(AverageMeter)
-        self._first_write = not os.path.exists(self._csv_file_name)
+        self._first_write = not os.path.exists(self._csv_file_name) or \
+          os.stat(self._csv_file_name).st_size == 0
         self._csv_file = open(self._csv_file_name, 'a')
         self._csv_writer = None
 

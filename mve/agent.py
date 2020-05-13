@@ -397,13 +397,10 @@ class SACMVEAgent(Agent):
               replay_buffer.sample(self.step_batch_size)
 
             if self.critic is not None:
-                if self.full_target_mve:
+                if self.full_target_mve and step > self.warmup_steps:
                     self.update_critic_mve(obs, action, reward, next_obs, not_done_no_max, logger, step)
                 else:
-                    self.update_critic(
-                        obs, next_obs,
-                        action, reward, not_done_no_max, logger, step
-                    )
+                    self.update_critic(obs, next_obs, action, reward, not_done_no_max, logger, step)
 
             if step % self.actor_update_freq == 0:
                 self.update_actor_and_alpha(obs, logger, step)
@@ -416,7 +413,6 @@ class SACMVEAgent(Agent):
             if self.critic is not None and step % self.critic_target_update_freq == 0:
                 utils.soft_update_params(
                     self.critic, self.critic_target, self.critic_tau)
-
 
     def update_rew_step(self, obs, action, reward, logger, step):
         assert obs.dim() == 2

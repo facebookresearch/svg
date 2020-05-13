@@ -7,8 +7,6 @@ import hydra
 import numpy as np
 import torch
 
-import model_zoo
-from model_zoo.regression import MaxLikelihoodRegression
 from model_zoo.utils.data import SeqDataset, format_seqs
 
 
@@ -41,10 +39,11 @@ def split_buffer(replay_buffer, max_transitions):
     return train_seqs, test_seqs
 
 
-def simulate_rl_run(model, dataset, fit_params, train_seqs, test_data, num_evals):
-    eval_freq = len(train_seqs) // num_evals
+def simulate_rl_run(model, dataset, fit_params, train_seqs, test_data, sim_params):
+    eval_freq = len(train_seqs) // sim_params['num_evals']
     run_metrics = dict(train_loss=[], num_train=[],
                        holdout_loss=[], holdout_mse=[],
+                       validation_loss=[], validation_mse=[],
                        test_loss=[], test_mse=[])
     model_checkpoints = []
     num_train = 0
@@ -54,10 +53,17 @@ def simulate_rl_run(model, dataset, fit_params, train_seqs, test_data, num_evals
         if (i + 1) % eval_freq == 0:
             run_metrics['num_train'].append(num_train)
             fit_metrics = model.fit(dataset, fit_params)
+
+            validation_data = format_seqs(dataset.holdout_input_seqs, dataset.holdout_target_seqs,
+                                       sim_params.test_seq_len, 'sequential')
+            validation_metrics = model.validate(*validation_data)
             eval_metrics = model.validate(*test_data)
+
             run_metrics['train_loss'].append(fit_metrics['train_loss'][-1])
             run_metrics['holdout_loss'].append(fit_metrics['holdout_loss'][-1])
             run_metrics['holdout_mse'].append(fit_metrics['holdout_mse'])
+            run_metrics['validation_loss'].append(validation_metrics['val_loss'])
+            run_metrics['validation_mse'].append(validation_metrics['val_mse'])
             run_metrics['test_loss'].append(eval_metrics['val_loss'])
             run_metrics['test_mse'].append(eval_metrics['val_mse'])
 
@@ -81,17 +87,16 @@ def experiment(ckpt, cfg):
     for trial in range(cfg.num_seeds):
         print(f"--- TRIAL {trial + 1} ---")
         # format buffer data
-        dataset = SeqDataset(cfg.train_seq_len, holdout_ratio=cfg.holdout_ratio)
+        dataset = SeqDataset(cfg.sim_params.train_seq_len, holdout_ratio=cfg.holdout_ratio)
         train_seqs, test_seqs = split_buffer(replay_buffer, max_transitions=cfg.max_transitions)
         test_input_seqs = [seq_pair[0] for seq_pair in test_seqs]
         test_target_seqs = [seq_pair[1] for seq_pair in test_seqs]
-        test_data = format_seqs(test_input_seqs, test_target_seqs, cfg.test_seq_len, 'sequential')
+        test_data = format_seqs(test_input_seqs, test_target_seqs, cfg.sim_params.test_seq_len, 'sequential')
 
-        # create reg_model, run trial
-        # model = MaxLikelihoodRegression(input_dim, target_dim, network_class,
-        #                                 network_kwargs, deterministic=det_model)
+        cfg.reg_model.params.obs_dim = obs_dim
         model = hydra.utils.instantiate(cfg.reg_model)
-        trial_metrics, _ = simulate_rl_run(model, dataset, cfg.network.fit_params, train_seqs, test_data, cfg.num_evals)
+
+        trial_metrics, _ = simulate_rl_run(model, dataset, cfg.network.fit_params, train_seqs, test_data, cfg.sim_params)
         results.append(trial_metrics)
     results = {key: np.stack([d[key] for d in results]) for key in results[0].keys()}
 

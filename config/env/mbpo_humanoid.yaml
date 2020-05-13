@@ -14,3 +14,4 @@ agent:
   params:
     horizon: 5
     warmup_steps: 10000
+    dx_threshold: 0.015

@@ -61,6 +61,7 @@ agent:
     actor_update_freq: 1
     actor_mve: true
     actor_detach_rho: false
+    actor_dx_threshold: null
 
     critic_cfg: ${double_q_critic}
     critic_lr: 1e-4
@@ -159,9 +160,8 @@ hydra:
                 slurm:
                     max_num_timeout: 100000
                     time: 4319
-                    partition: scavenge
                     # partition: learnfair
-                    # partition: priority
-                    # comment: For ICML
+                    partition: priority
+                    comment: For NeurIPS
 
         mem_limit: 64

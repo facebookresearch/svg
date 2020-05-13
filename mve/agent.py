@@ -38,6 +38,7 @@ class SACMVEAgent(Agent):
         actor_update_freq,
         actor_mve,
         actor_detach_rho,
+        actor_dx_threshold,
         critic_cfg, critic_lr, critic_tau,
         critic_target_update_freq,
         critic_target_mve,
@@ -109,6 +110,7 @@ class SACMVEAgent(Agent):
         self.actor_update_freq = actor_update_freq
         self.actor_mve = actor_mve
         self.actor_detach_rho = actor_detach_rho
+        self.actor_dx_threshold = actor_dx_threshold
 
         # optional critic
         self.critic = None
@@ -133,6 +135,7 @@ class SACMVEAgent(Agent):
 
         self.train()
         self.last_step = 0
+        self.rolling_dx_loss = None
 
 
     def __setstate__(self, d):
@@ -140,6 +143,10 @@ class SACMVEAgent(Agent):
 
         if 'full_target_mve' not in d:
             self.full_target_mve = False
+
+        if 'actor_dx_threshold' not in d:
+            self.actor_dx_threshold = None
+            self.rolling_dx_loss = None
 
 
     def train(self, training=True):
@@ -209,7 +216,13 @@ class SACMVEAgent(Agent):
         assert xs.ndimension() == 2
         n_batch, _ = xs.size()
 
-        if step < self.warmup_steps or self.horizon == 0 or not self.actor_mve:
+        do_model_free_update = step < self.warmup_steps or \
+          self.horizon == 0 or not self.actor_mve or \
+          (self.actor_dx_threshold is not None and \
+           self.rolling_dx_loss is not None and
+           self.rolling_dx_loss > self.actor_dx_threshold)
+
+        if do_model_free_update:
             # Do vanilla SAC updates while the model warms up.
             # i.e., fit to just the Q function
             _, pi, first_log_p = self.actor(xs)
@@ -369,7 +382,14 @@ class SACMVEAgent(Agent):
                 obses, actions, rewards = replay_buffer.sample_multistep(
                     self.seq_batch_size, self.seq_train_length)
                 assert obses.ndimension() == 3
-                self.dx.update_step(obses, actions, rewards, logger, step)
+                dx_loss = self.dx.update_step(obses, actions, rewards, logger, step)
+                if self.actor_dx_threshold is not None:
+                    if self.rolling_dx_loss is None:
+                        self.rolling_dx_loss = dx_loss
+                    else:
+                        factor = 0.9
+                        self.rolling_dx_loss = factor*self.rolling_dx_loss + \
+                          (1.-factor)*dx_loss
 
         n_updates = 1 if step < self.warmup_steps else self.model_free_update_repeat
         for i in range(n_updates):

@@ -3,10 +3,16 @@ import pandas as pd
 import numpy as np
 import scipy as sp
 from pprint import pprint
+from glob import glob
+import os
+import seaborn as sns
+import pickle as pkl
+import textwrap
 
 from omegaconf import OmegaConf
 
-def plot_ac_exp(root, print_cfg=False, print_overrides=True, Qmax=None):
+def plot_ac_exp(root, print_cfg=False, print_overrides=True, Qmax=None,
+                obsmax=None):
     config = OmegaConf.load(f'{root}/.hydra/config.yaml')
     df = pd.read_csv(f'{root}/train.csv')
     N_smooth = 200
@@ -46,7 +52,7 @@ def plot_ac_exp(root, print_cfg=False, print_overrides=True, Qmax=None):
     if 'model_obs_loss' in df:
         ax = axs[2]
         ax.plot(*get_smooth('model_obs_loss'), label='Obs Loss')
-        ax.set_ylim(0, None)
+        ax.set_ylim(0, obsmax)
         ax.set_xlabel('1k Iteration')
         ax.set_ylabel('Obs Loss')
         ax.legend()
@@ -71,10 +77,7 @@ def plot_ac_exp(root, print_cfg=False, print_overrides=True, Qmax=None):
 
     ax = axs[5]
     l, = ax.plot(df.step/1E3, df.episode_reward, alpha=0.4)
-    try:
-        df = pd.read_csv(f'{root}/eval.csv')
-    except:
-        df = None
+    df = load_eval(root)
     if df is not None and len(df) > 0:
         if len(df) == 1:
             ax.scatter(df.step/1E3, df.episode_reward, color=l.get_color())
@@ -96,3 +99,238 @@ def plot_ac_exp(root, print_cfg=False, print_overrides=True, Qmax=None):
     fig.subplots_adjust(top=0.92)
     fig.suptitle(root + ': ' + config.env_name, fontsize=20)
     return fig, axs
+
+
+def load_eval(root):
+    eval_f = f'{root}/eval.csv'
+    try:
+        skiprows = int('episode' in next(open(eval_f, 'r')))
+        names = ('episode', 'episode_reward', 'step')
+        eval_df = pd.read_csv(eval_f, names=names, skiprows=skiprows)
+        return eval_df
+    except:
+        return None
+
+
+def sweep_summary(root):
+    configs = {}
+    all_summary = []
+    for d in glob(f'{root}/*/'):
+        eval_df = load_eval(d)
+        if eval_df is None:
+            continue
+#         last_eval_rew = eval_df.episode_reward.values[-10:].mean()
+        last_eval_rew = eval_df.episode_reward.values[-1]
+        best_eval_rew = eval_df.episode_reward.values.max()
+        fname = f'{d}/config.yaml'
+        if not os.path.exists(fname):
+            fname = f'{d}/.hydra/config.yaml'
+            assert os.path.exists(fname)
+        config = OmegaConf.load(fname)
+        configs[d] = config
+        fname = f'{d}/overrides.yaml'
+        if not os.path.exists(fname):
+            fname = f'{d}/.hydra/overrides.yaml'
+            assert os.path.exists(fname)
+        overrides = OmegaConf.load(fname)
+        summary = dict(x.split('=') for x in overrides)
+        summary['best_eval_rew'] = best_eval_rew
+        summary['last_eval_rew'] = last_eval_rew
+        summary['d'] = d
+        summary['env_name'] = config.env_name
+        all_summary.append(summary)
+
+    if len(all_summary) == 0:
+        print('No experiments with eval data found.')
+        return [None]*4
+
+    all_summary = pd.DataFrame(all_summary)
+    for col in all_summary.columns:
+        if col != 'env_name' and len(all_summary[col].unique()) == 1:
+            all_summary.drop(col,inplace=True,axis=1)
+
+    filt = ['env_name', 'seed']
+    groups = [x.split('=')[0] for x in overrides]
+    groups = [x for x in groups if x not in filt]
+    groups = list(set(groups) & set(all_summary.columns))
+    groups = ['env_name'] + groups
+    groups = all_summary.groupby(groups)
+    agg = groups.agg(['mean', 'std'])
+
+    return all_summary, groups, agg, configs
+
+def plot_rew(root, ax=None, label=None):
+    eval_df = load_eval(root)
+    if eval_df is None:
+        return
+
+    if ax is None:
+        nrow, ncol = 1, 1
+        fig, ax = plt.subplots(nrow, ncol, figsize=(6*ncol, 4*nrow))
+        ax.set_xlabel('1k Updates')
+
+    l, = ax.plot(eval_df.step/1000, eval_df.episode_reward, label=label)
+
+def plot_rew_list(ds, title=None, ax=None):
+    nrow, ncol = 1, 1
+    if ax is None:
+        fig, ax = plt.subplots(nrow, ncol, figsize=(6*ncol, 4*nrow))
+    ax.set_xlabel('1k Updates')
+#     ax.set_ylim(0, 1000)
+    if title is not None:
+        ax.set_title(title)
+    for d in ds:
+        label = d.split('/')[-2]
+        plot_rew(d, ax=ax, label=label)
+    ax.legend()
+
+def plot_all_rew(root):
+    nrow, ncol = 1, 1
+    fig, ax = plt.subplots(nrow, ncol, figsize=(6*ncol, 4*nrow))
+    ax.set_xlabel('1k Updates')
+    title = '/'.join(root.split('/')[-3:])
+    ax.set_title(title)
+#     ax.set_ylim(0, 1000)
+    for d in glob(f'{root}/*/'):
+        label = d.split('/')[-2]
+        plot_rew(d, fig=fig, label=label)
+    ax.legend()
+
+def plot_agg(df, agg, ncol=4):
+    nrow = int(np.ceil(len(agg)/ncol))
+    fig, axs = plt.subplots(nrow, ncol, figsize=(6*ncol, 4*nrow))
+    if nrow == 1 and ncol == 1:
+        axs = [axs]
+    else:
+        axs = axs.ravel()
+    for ax, (r, sub_df) in zip(axs, agg.iterrows()):
+        if isinstance(r, str):
+            r = [r]
+        I = df.index == df.index
+        for k, v in zip(agg.index.names, r):
+            I = I & (df[k] == v)
+        df_I = df[I]
+        title = '.'.join([f'{k}={v}' for k,v in zip(agg.index.names, r)])
+        title = title.replace('agent.params.', '').replace('model.params.', '')
+        title = '\n'.join(textwrap.wrap(title, 45))
+        plot_rew_list(df_I.d.values, title=title, ax=ax)
+    fig.tight_layout()
+
+def plot_ablation(
+    groups, title, xmax=None,
+    save=None, lw=3,
+    xlabel='Timestep', ylabel='Reward',
+    legend=False, sac_lim=None
+):
+    fig, ax = plt.subplots(1, 1, figsize=(4.5,3))
+
+    for group in groups:
+        all_df = []
+        min_step = None
+        for root in group['roots']:
+            df = load_eval(d)
+            if min_step is None or max(df['step']) < min_step:
+                min_step = max(df['step'])
+            df['f'] = eval_f
+            all_df.append(df)
+
+        step_interp = np.linspace(0, min_step, num=20)
+        all_df_interp = []
+        for df in all_df:
+            rew_interp = np.interp(step_interp, df['step'], df['episode_reward'])
+            df_interp = pd.DataFrame({'step': step_interp, 'rew': rew_interp})
+            all_df_interp.append(df_interp)
+        all_df_interp = pd.concat(all_df_interp)
+        label = group['tag'] if legend else None
+        if 'color' in group:
+            sns.lineplot(x='step', y='rew', data=all_df_interp,
+                         ax=ax, linewidth=lw, label=label, color=group['color'])
+        else:
+            sns.lineplot(x='step', y='rew', data=all_df_interp,
+                         ax=ax, linewidth=lw, label=label)
+
+    ax.axhline(sac_lim, lw=lw, linestyle='--', color='k')
+
+    ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
+    if xmax is not None:
+        ax.set_xlim(0, xmax)
+
+    ax.set_xlabel('Timestep')
+    ax.set_ylabel('Reward')
+    ax.set_title(title)
+    fig.tight_layout()
+
+    if save is not None:
+        fig.savefig(save)
+        os.system(f'convert -trim {save} {save}')
+
+def plot_comparison(
+    ac_base, ac_is, mbpo_f, sac_f, title, xmax=None,
+    sac_scale=1., steve=None, cb=None, save=None, lw=3,
+    xlabel='Timestep', ylabel='Reward', alive_bonus=None,
+    n_interp=20, n_smooth=2
+):
+    fig, ax = plt.subplots(1, 1, figsize=(4.5,3))
+
+    all_df = []
+    min_step = None
+    for i in ac_is:
+        root = f'{ac_base}/{i}'
+        df = load_eval(root)
+        if df is None:
+            continue
+        if min_step is None or max(df['step']) < min_step:
+            min_step = max(df['step'])
+        # df['f'] = eval_f
+        all_df.append(df)
+
+    step_interp = np.linspace(0, min_step, num=n_interp)
+    all_df_interp = []
+    for df in all_df:
+        step, rew = df['step'], df['episode_reward']
+        step = step[n_smooth-1:]
+        rew = np.convolve(rew, np.full(n_smooth, 1./n_smooth), mode='valid')
+        rew_interp = np.interp(step_interp, step, rew)
+        df_interp = pd.DataFrame({'step': step_interp, 'rew': rew_interp})
+        all_df_interp.append(df_interp)
+    all_df_interp = pd.concat(all_df_interp)
+    sns.lineplot(x='step', y='rew', data=all_df_interp, ax=ax, linewidth=lw)
+
+    sac_data = np.loadtxt(sac_f, delimiter=',').T
+    init_cost = np.expand_dims(np.array([0., all_df_interp.iloc[0].rew]), 1)
+
+    sac_data = np.hstack((init_cost, sac_data))
+    sac_data[1] = sac_scale*sac_data[1] # Correcting the reconstruction of their data
+    l, = ax.plot(1e6*sac_data[0], sac_data[1], linewidth=lw)
+    ax.axhline(sac_data[1][-3:].mean(), linestyle='--', color=l.get_color(), linewidth=lw)
+
+    mbpo_data = pkl.load(open(mbpo_f, 'rb'))
+    mbpo_data['step'] = mbpo_data['x']*1e3
+#     ax.plot(mbpo_data['step'], mbpo_data['y'], linewidth=lw)
+    min_step = min(max(mbpo_data['step']), min_step)
+    step_interp = np.linspace(0, min_step, num=20)
+    mbpo_interp = np.interp(step_interp, mbpo_data['step'], mbpo_data['y'])
+    ax.plot(step_interp, mbpo_interp, linewidth=lw)
+
+    if steve is not None:
+        ax.axhline(steve, linestyle='--', color='g', linewidth=lw)
+
+    if alive_bonus is not None:
+        ax.axhline(alive_bonus, linestyle='dotted', color='k', linewidth=lw, alpha=0.3)
+
+    if cb is not None:
+        cb(ax)
+
+    # ax.set_xscale('log')
+    ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
+    if xmax is not None:
+        ax.set_xlim(0, xmax)
+
+    ax.set_xlabel('Timestep')
+    ax.set_ylabel('Reward')
+    ax.set_title(title)
+    fig.tight_layout()
+
+    if save is not None:
+        fig.savefig(save)
+        os.system(f'convert -trim {save} {save}')

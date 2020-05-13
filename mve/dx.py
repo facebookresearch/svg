@@ -212,4 +212,4 @@ class SeqDx(nn.Module):
 
         logger.log('train_model/obs_loss', obs_loss, step)
 
-
+        return obs_loss.item()

@@ -1,5 +1,5 @@
 env_name: mbpo_walker2d
-num_train_steps: 1e6
+num_train_steps: 2e6
 eval_freq: 25000
 
 # Environment-specific overrides:

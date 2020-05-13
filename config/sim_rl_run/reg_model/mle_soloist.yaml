@@ -1,9 +1,10 @@
 reg_model:
   name: mle_soloist
-  class: model_zoo.regression.MaxLikelihoodRegression
+  class: mve.dx_models.MultistepDx
   params:
     input_dim: ???
     target_dim: ???
     model_class: ${network.name}
     model_kwargs: ${network.kwargs}
     mode: 'det'
+    obs_dim: ???

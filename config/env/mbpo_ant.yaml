@@ -13,3 +13,4 @@ agent:
   params:
     horizon: 3
     warmup_steps: 10000
+    actor_dx_threshold: 0.01

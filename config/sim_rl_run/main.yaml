@@ -12,6 +12,7 @@ sim_params:
   num_evals: 5        # How many times to train and evaluate the reg_model in a sim run
 
 max_transitions:    # Set this to O(10k) for fast test runs
+subsample_rate: 1.0
 holdout_ratio: 0.1  # Ratio of training episodes to hold out for early stopping
 num_seeds: 3        # How many times to repeat the sim
 

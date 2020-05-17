@@ -10,7 +10,7 @@ import torch
 from model_zoo.utils.data import SeqDataset, format_seqs
 
 
-def split_buffer(replay_buffer, max_transitions):
+def split_buffer(replay_buffer, max_transitions, subsample_rate):
     field_names = ['obses', 'actions', 'rewards', 'next_obses', 'not_dones', 'not_dones_no_max']
     buffer_data = [getattr(replay_buffer, field) for field in field_names]
 
@@ -25,6 +25,11 @@ def split_buffer(replay_buffer, max_transitions):
         target_seq.append(np.concatenate([transition[2].reshape(1, 1), transition[3] - transition[0]], axis=1))
 
         if not_done == 0:
+            p = np.random.rand()
+            if p > subsample_rate:
+                input_seq, target_seq = [], []
+                continue
+
             p = np.random.rand()
             if p < 0.1:
                 test_seqs.append((np.concatenate(input_seq), np.concatenate(target_seq)))
@@ -88,7 +93,7 @@ def experiment(ckpt, cfg):
         print(f"--- TRIAL {trial + 1} ---")
         # format buffer data
         dataset = SeqDataset(cfg.sim_params.train_seq_len, holdout_ratio=cfg.holdout_ratio)
-        train_seqs, test_seqs = split_buffer(replay_buffer, max_transitions=cfg.max_transitions)
+        train_seqs, test_seqs = split_buffer(replay_buffer, cfg.max_transitions, cfg.subsample_rate)
         test_input_seqs = [seq_pair[0] for seq_pair in test_seqs]
         test_target_seqs = [seq_pair[1] for seq_pair in test_seqs]
         test_data = format_seqs(test_input_seqs, test_target_seqs, cfg.sim_params.test_seq_len, 'sequential')
@@ -118,7 +123,7 @@ def main(cfg):
     print(f"log dir: {log_dir.as_posix()}")
 
     # load checkpoint
-    ckpt_files = list(ckpt_dir.rglob('*.pkl'))
+    ckpt_files = list(ckpt_dir.rglob('latest.pkl'))
     if len(ckpt_files) < 1:
         raise RuntimeError("no checkpoints found")
     else:

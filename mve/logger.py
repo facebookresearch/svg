@@ -33,17 +33,19 @@ AGENT_TRAIN_FORMAT = {
         ('actor_entropy', 'AENT', 'float')
     ],
     'sac_mve': [
-        ('batch_reward', 'BR', 'float'),
-        ('model_loss', 'LOSS', 'float'),
+        # ('batch_reward', 'BR', 'float'),
+        # ('model_loss', 'LOSS', 'float'),
         ('model_obs_loss', 'OLOSS', 'float'),
         ('model_reward_loss', 'RLOSS', 'float'),
         ('model_done_loss', 'DLOSS', 'float'),
-        ('model_kl_loss', 'KLLOSS', 'float'),
+        # ('model_kl_loss', 'KLLOSS', 'float'),
         ('actor_loss', 'ALOSS', 'float'),
         ('critic_loss', 'CLOSS', 'float'),
+        ('critic_target_avg', 'YAVG', 'float'),
         ('alpha_loss', 'TLOSS', 'float'),
         ('alpha_value', 'TVAL', 'float'),
-        ('actor_entropy', 'AENT', 'float')
+        ('actor_entropy', 'AENT', 'float'),
+        ('actor_q_avg', 'QAVG', 'float')
     ],
 }
 

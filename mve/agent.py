@@ -39,10 +39,11 @@ class SACMVEAgent(Agent):
         actor_mve,
         actor_detach_rho,
         actor_dx_threshold,
+        actor_mve_update,
         critic_cfg, critic_lr, critic_tau,
         critic_target_update_freq,
         critic_target_mve,
-        full_target_mve,
+        critic_mve_update,
         discount,
         seq_batch_size, seq_train_length,
         step_batch_size,
@@ -125,13 +126,9 @@ class SACMVEAgent(Agent):
             self.critic_tau = critic_tau
             self.critic_target_update_freq = critic_target_update_freq
 
+        self.actor_mve_update = actor_mve_update
+        self.critic_mve_update = critic_mve_update
         self.critic_target_mve = critic_target_mve
-        self.full_target_mve = full_target_mve
-        if critic_target_mve or full_target_mve:
-            assert self.critic is not None
-
-        if full_target_mve:
-            assert ~critic_target_mve
 
         self.train()
         self.last_step = 0
@@ -148,7 +145,6 @@ class SACMVEAgent(Agent):
             self.actor_dx_threshold = None
             self.rolling_dx_loss = None
 
-
     def train(self, training=True):
         self.training = training
         self.dx.train(training)
@@ -158,10 +154,8 @@ class SACMVEAgent(Agent):
         if self.critic is not None:
             self.critic.train(training)
 
-
     def reset(self):
         pass
-
 
     def act(self, obs, sample=False):
         obs = torch.FloatTensor(obs).to(self.device)
@@ -176,7 +170,6 @@ class SACMVEAgent(Agent):
         action = action.clamp(*self.action_range)
         assert action.ndim == 2 and action.shape[0] == 1
         return utils.to_np(action[0])
-
 
     def expand_Q(self, xs, critic, sample=True, discount=False):
         assert xs.dim() == 2
@@ -211,7 +204,6 @@ class SACMVEAgent(Agent):
         total_log_p_us = log_p_us.sum(dim=0).squeeze()
         return total_rewards, first_log_p, total_log_p_us
 
-    # @profile
     def update_actor_and_alpha(self, xs, logger, step):
         assert xs.ndimension() == 2
         n_batch, _ = xs.size()
@@ -229,6 +221,7 @@ class SACMVEAgent(Agent):
             actor_Q1, actor_Q2 = self.critic(xs, pi)
             actor_Q = torch.min(actor_Q1, actor_Q2)
             actor_loss = (self.temp.alpha.detach() * first_log_p - actor_Q).mean()
+            logger.log('train_actor/q_avg', actor_Q.mean(), step)
         else:
             # Switch to the model-based updates.
             # i.e., fit to the controller's sequence cost
@@ -249,8 +242,6 @@ class SACMVEAgent(Agent):
 
         logger.log('train_alpha/value', self.temp.alpha, step)
 
-
-    # @profile
     def update_critic(self, xs, xps, us, rs, not_done, logger, step):
         assert xs.ndimension() == 2
         n_batch, _ = xs.size()
@@ -283,25 +274,24 @@ class SACMVEAgent(Agent):
         Q_loss = F.mse_loss(current_Q1, target_Q) + \
             F.mse_loss(current_Q2, target_Q)
 
-        logger.log('train_critic/Q_loss', Q_loss, step)
+        logger.log('train_critic/loss', Q_loss, step)
         current_Q = torch.min(current_Q1, current_Q2)
         logger.log('train_critic/value', current_Q.mean(), step)
+        logger.log('train_critic/target_avg', target_Q.mean(), step)
 
         self.critic_opt.zero_grad()
         Q_loss.backward()
-        logger.log('train_critic/Q_loss', Q_loss, step)
         self.critic_opt.step()
 
         self.critic.log(logger, step)
 
-    def update_critic_mve(self, first_xs, first_us, first_rs, next_xs, first_not_dones, logger, step):
+    def get_rollout(self, first_xs, first_us, first_rs, next_xs, first_not_dones):
         """ MVE critic loss from Feinberg et al (2015) """
         assert first_xs.dim() == 2
         assert first_us.dim() == 2
         assert first_rs.dim() == 2
         assert next_xs.dim() == 2
         assert first_not_dones.dim() == 2
-        n_batch = next_xs.size(0)
 
         # unroll policy, concatenate obs and actions
         pred_us, log_p_us, pred_xs = self.dx.unroll_policy(
@@ -315,7 +305,6 @@ class SACMVEAgent(Agent):
         pred_rs = self.rew(xu[1:-1])  # t from 0 to H - 1
         rewards = torch.cat([first_rs.unsqueeze(0), pred_rs]).squeeze(2)
         rewards = rewards.unsqueeze(1).expand(-1, horizon_len, -1)
-        log_p_us = log_p_us.unsqueeze(1).expand(-1, horizon_len, -1)
 
         # get not dones factor matrix, rows --> t, cols --> k
         first_not_dones = first_not_dones.unsqueeze(0)
@@ -323,48 +312,90 @@ class SACMVEAgent(Agent):
         pred_not_dones = 1. - self.done(xu[2:]).sigmoid()  # t from 1 to H
         not_dones = torch.cat([init_not_dones, first_not_dones, pred_not_dones]).squeeze(2)
         not_dones = not_dones.unsqueeze(1).repeat(1, horizon_len, 1)
-        triu_rows, triu_cols = torch.triu_indices(row=horizon_len + 1, col=horizon_len, offset=1, device=not_dones.device)
+        triu_rows, triu_cols = torch.triu_indices(row=horizon_len + 1, col=horizon_len,
+                                                  offset=1, device=not_dones.device)
         not_dones[triu_rows, triu_cols, :] = 1.
         not_dones = not_dones.cumprod(dim=0).detach()
 
+        return all_obs, all_us, log_p_us, rewards, not_dones
+
+    def _get_mve_discounts(self, horizon_len):
         # get lower-triangular reward discount factor matrix
-        discount = torch.tensor(self.discount, device=rewards.device)
+        discount = torch.tensor(self.discount)
         discount_exps = torch.stack([torch.arange(-i, -i + horizon_len) for i in range(horizon_len)], dim=1)
-        r_discounts = discount ** discount_exps.to(rewards.device)
-        r_discounts = r_discounts.tril().unsqueeze(-1)
+        discount_matrix = discount ** discount_exps
+        discount_matrix = discount_matrix.tril().unsqueeze(-1)
+        return discount_matrix
 
-        # get discounted sums of soft rewards (t from -1 to H - 1 (k from t to H - 1))
+    def _actor_mve_update(self, log_p_us, rewards, all_obs, all_us, logger, step):
+        _, horizon_len, n_batch = rewards.shape
+
+        final_q1, final_q2 = self.critic(all_obs[-1], all_us[-1])
+        final_qs = torch.min(final_q1, final_q2)
+        final_qs = final_qs.squeeze(-1).expand(1, horizon_len, -1)  # reshape for discounting
+
+        discount_matrix = self._get_mve_discounts(horizon_len).to(final_qs.device)
         alpha = self.temp.alpha.detach()
-        soft_rewards = (not_dones[:-1] * rewards) - (discount * alpha * not_dones[1:] * log_p_us)
-        soft_rewards = (r_discounts * soft_rewards).sum(0)
+        # soft_rewards = rewards[1:] - (alpha * self.discount * log_p_us[1:].unsqueeze(1))
+        # import pdb; pdb.set_trace()
+        action_value = (discount_matrix * torch.cat([rewards[1:], final_qs])).sum(0) - \
+                       (discount_matrix[:-1] * (alpha * self.discount * log_p_us[1:].unsqueeze(1))).mean(0)
 
-        # get target q-values, final critic targets
+        assert log_p_us.shape == action_value.shape
+        alpha = self.temp.alpha.detach()
+        actor_loss = (alpha * log_p_us - action_value).mean()
+        self.actor_opt.zero_grad()
+        actor_loss.backward()
+        self.actor_opt.step()
+        logger.log('train_actor/loss', actor_loss, step)
+        logger.log('train_actor/entropy', -log_p_us.mean(), step)
+        logger.log('train_actor/q_avg', action_value.mean(), step)
+
+        self.actor.log(logger, step)
+
+    def _critic_mve_update(self, all_obs, all_us, log_p_us, rewards, not_dones, logger, step):
+        _, horizon_len, n_batch = rewards.shape
+
+        discount_matrix = self._get_mve_discounts(horizon_len).to(rewards.device)
+        alpha = self.temp.alpha.detach()
+        entropy = -(self.discount * alpha * not_dones[1:] * log_p_us.unsqueeze(1).expand(-1, horizon_len, -1))
+        # soft_rewards = () + entropy
+        # entropy = -(self.discount * alpha * log_p_us.unsqueeze(1).expand(-1, horizon_len, -1))
+        # soft_rewards = rewards + entropy
+        discounted_rewards = (discount_matrix * not_dones[:-1] * rewards).sum(0) + \
+                             (discount_matrix * entropy).sum(0)
+
+        # get target q-values
         target_q1, target_q2 = self.critic_target(all_obs[-1], all_us[-1])
-        target_qs = torch.min(target_q1, target_q2).squeeze(-1).expand(horizon_len, -1)
-        q_discounts = discount ** torch.arange(horizon_len, 0, step=-1).to(target_qs.device)
+        target_qs = torch.min(target_q1, target_q2)
+        target_qs = target_qs.squeeze(-1).expand(horizon_len, -1)
+        q_discounts = (torch.tensor(self.discount) ** torch.arange(horizon_len, 0, step=-1)).to(target_qs.device)
         target_qs = target_qs * (not_dones[-1] * q_discounts.unsqueeze(-1))
-        critic_targets = (soft_rewards + target_qs).detach()
+
+        critic_targets = (discounted_rewards + target_qs).detach()
 
         # get predicted q-values
         with utils.eval_mode(self.critic):
-            q1, q2 = self.critic(all_obs[:-1].flatten(end_dim=-2),
-                                 all_us[:-1].flatten(end_dim=-2))
+            q1, q2 = self.critic(all_obs[:-1].flatten(end_dim=-2).detach(),
+                                 all_us[:-1].flatten(end_dim=-2).detach())
             q1, q2 = q1.reshape(horizon_len, n_batch), q2.reshape(horizon_len, n_batch)
         assert q1.size() == critic_targets.size()
         assert q2.size() == critic_targets.size()
 
         # update critics
-        q1_loss = (not_dones[:-1, 0] * (q1 - critic_targets).pow(2)).mean()
-        q2_loss = (not_dones[:-1, 0] * (q2 - critic_targets).pow(2)).mean()
+        q1_loss = (not_dones[:-1, 0].detach() * (q1 - critic_targets).pow(2)).mean()
+        q2_loss = (not_dones[:-1, 0].detach() * (q2 - critic_targets).pow(2)).mean()
+        # q1_loss = ((q1 - critic_targets).pow(2)).mean()
+        # q2_loss = ((q2 - critic_targets).pow(2)).mean()
         Q_loss = q1_loss + q2_loss
 
-        logger.log('train_critic/Q_loss', Q_loss, step)
         current_Q = torch.min(q1, q2)
         logger.log('train_critic/value', current_Q.mean(), step)
+        logger.log('train_critic/target_avg', critic_targets.mean(), step)
 
         self.critic_opt.zero_grad()
         Q_loss.backward()
-        logger.log('train_critic/Q_loss', Q_loss, step)
+        logger.log('train_critic/loss', Q_loss, step)
         self.critic_opt.step()
 
         self.critic.log(logger, step)
@@ -375,9 +406,9 @@ class SACMVEAgent(Agent):
         if step % self.update_freq != 0:
             return
 
-        if (self.horizon > 1 or not self.critic) and \
+        if (self.horizon >= 1 or not self.critic) and \
               (step % self.model_update_freq == 0) and \
-              (self.actor_mve or self.critic_target_mve):
+              (self.critic_mve_update or self.actor_mve_update):
             for i in range(self.model_update_repeat):
                 obses, actions, rewards = replay_buffer.sample_multistep(
                     self.seq_batch_size, self.seq_train_length)
@@ -396,27 +427,38 @@ class SACMVEAgent(Agent):
             obs, action, reward, next_obs, not_done, not_done_no_max = \
               replay_buffer.sample(self.step_batch_size)
 
-            if self.critic is not None:
-                if self.full_target_mve:
-                    self.update_critic_mve(obs, action, reward, next_obs, not_done_no_max, logger, step)
-                else:
-                    self.update_critic(
-                        obs, next_obs,
-                        action, reward, not_done_no_max, logger, step
-                    )
-
-            if step % self.actor_update_freq == 0:
-                self.update_actor_and_alpha(obs, logger, step)
-
+            # update reward and term_fn models
             if self.rew_opt is not None:
                 self.update_rew_step(obs, action, reward, logger, step)
-
             self.update_done_step(obs, action, not_done_no_max, logger, step)
+
+            # do dx model rollout
+            if step > self.warmup_steps and (self.critic_mve_update or self.actor_mve_update):
+                rollout_args = obs, action, reward, next_obs, not_done_no_max
+                all_obs, all_us, log_p_us, rewards, not_dones = self.get_rollout(*rollout_args)
+
+            # critic update
+            assert self.critic is not None
+            if self.critic_mve_update and step > self.warmup_steps:
+                self._critic_mve_update(all_obs, all_us, log_p_us, rewards, not_dones, logger, step)
+            else:
+                assert self.critic_target_mve is False
+                self.update_critic(obs, next_obs, action, reward, not_done_no_max, logger, step)
+
+            # actor update
+            if step % self.actor_update_freq != 0:
+                pass
+            elif self.actor_mve_update and step > self.warmup_steps:
+                actor_update_args = log_p_us, rewards, all_obs, all_us
+                self._actor_mve_update(*actor_update_args, logger, step)
+                self.temp.update(log_p_us, logger, step)
+                logger.log('train_alpha/value', self.temp.alpha, step)
+            else:
+                self.update_actor_and_alpha(obs, logger, step)
 
             if self.critic is not None and step % self.critic_target_update_freq == 0:
                 utils.soft_update_params(
                     self.critic, self.critic_target, self.critic_tau)
-
 
     def update_rew_step(self, obs, action, reward, logger, step):
         assert obs.dim() == 2

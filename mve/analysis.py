@@ -268,7 +268,7 @@ def plot_comparison(
     ac_base, ac_is, mbpo_f, sac_f, title, xmax=None,
     sac_scale=1., steve=None, cb=None, save=None, lw=3,
     xlabel='Timestep', ylabel='Reward', alive_bonus=None,
-    n_interp=20, n_smooth=2
+    n_interp=20, n_smooth=2, only_include_valid=True
 ):
     fig, ax = plt.subplots(1, 1, figsize=(4.5,3))
 
@@ -279,7 +279,9 @@ def plot_comparison(
         df = load_eval(root)
         if df is None:
             continue
-        if min_step is None or max(df['step']) < min_step:
+        t = max(df['step'])
+        if min_step is None or (only_include_valid and t < min_step) or \
+                (not only_include_valid and t > min_step):
             min_step = max(df['step'])
         # df['f'] = eval_f
         all_df.append(df)

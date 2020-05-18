@@ -5,11 +5,11 @@ eval_freq: 10000
 # Environment-specific overrides:
 learn_temp:
   params:
-    init_targ_entr: 0
-    final_targ_entr: -16
+    init_targ_entr: -2
+    final_targ_entr: -32
     entr_decay_factor: 0.125
 
 agent:
   params:
-    horizon: 5
-    warmup_steps: 1000
+    horizon: 3
+    warmup_steps: 10000

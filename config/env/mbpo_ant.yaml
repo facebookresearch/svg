@@ -1,5 +1,5 @@
 env_name: mbpo_ant
-num_train_steps: 3e6
+num_train_steps: 2e6
 eval_freq: 25000
 
 # Environment-specific overrides:
@@ -13,4 +13,3 @@ agent:
   params:
     horizon: 3
     warmup_steps: 10000
-    actor_dx_threshold: 0.01

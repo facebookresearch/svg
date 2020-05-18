@@ -413,9 +413,9 @@ class SACMVEAgent(Agent):
 
             self.update_done_step(obs, action, not_done_no_max, logger, step)
 
-        if self.critic is not None and step % self.critic_target_update_freq == 0:
-            utils.soft_update_params(
-                self.critic, self.critic_target, self.critic_tau)
+            if self.critic is not None and step % self.critic_target_update_freq == 0:
+                utils.soft_update_params(
+                    self.critic, self.critic_target, self.critic_tau)
 
 
     def update_rew_step(self, obs, action, reward, logger, step):

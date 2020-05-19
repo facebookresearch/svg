@@ -383,10 +383,10 @@ class SACMVEAgent(Agent):
         assert q2.size() == critic_targets.size()
 
         # update critics
-        q1_loss = (not_dones[:-1, 0].detach() * (q1 - critic_targets).pow(2)).mean()
-        q2_loss = (not_dones[:-1, 0].detach() * (q2 - critic_targets).pow(2)).mean()
-        # q1_loss = ((q1 - critic_targets).pow(2)).mean()
-        # q2_loss = ((q2 - critic_targets).pow(2)).mean()
+        # q1_loss = (not_dones[:-1, 0].detach() * (q1 - critic_targets).pow(2)).mean()
+        # q2_loss = (not_dones[:-1, 0].detach() * (q2 - critic_targets).pow(2)).mean()
+        q1_loss = ((q1 - critic_targets).pow(2)).mean()
+        q2_loss = ((q2 - critic_targets).pow(2)).mean()
         Q_loss = q1_loss + q2_loss
 
         current_Q = torch.min(q1, q2)

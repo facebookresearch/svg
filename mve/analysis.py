@@ -12,15 +12,14 @@ import textwrap
 from omegaconf import OmegaConf
 
 def plot_ac_exp(root, print_cfg=False, print_overrides=True, Qmax=None,
-                obsmax=None):
+                obsmax=None, suptitle=None, save=None,
+                plot_rew=True, N_smooth=200, N_downsample=200, smooth_train_rew=True):
     config = OmegaConf.load(f'{root}/.hydra/config.yaml')
     df = pd.read_csv(f'{root}/train.csv')
-    N_smooth = 200
-    N_downsample = 200
 
     def get_smooth(key):
         # it, vae_loss = smooth(df.index, df.vae_loss, N)
-        it, v = df.step/1E3, df[key]
+        it, v = df.step, df[key]
         _it = np.linspace(it.min(), it.max(), num=N_downsample)
         _v = sp.interpolate.interp1d(it, v)(_it)
         return _it, _v
@@ -32,62 +31,78 @@ def plot_ac_exp(root, print_cfg=False, print_overrides=True, Qmax=None,
     ax = axs[0]
     ax.plot(*get_smooth('actor_loss'), label='Total')
     # ax.set_ylim(0, 0.3)
-    ax.set_xlabel('1k Iteration')
+    ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
     ax.set_title('Actor Loss')
 
     if 'critic_Q_loss' in df:
         ax = axs[1]
         ax.plot(*get_smooth('critic_Q_loss'))
         ax.set_ylim(0, Qmax)
-        ax.set_xlabel('1k Iteration')
-        ax.set_ylabel('Critic Loss')
+        # ax.set_xlabel('1k Interactions')
+        ax.set_title('Critic Loss')
+        ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
 
         if 'critic_recon_loss' in df:
             ax = ax.twinx()
             ax.plot(*get_smooth('critic_recon_loss'), color='red')
             ax.set_ylim(0, None)
             ax.set_ylabel('Recon Loss')
+    elif 'critic_loss' in df:
+        ax = axs[1]
+        ax.plot(*get_smooth('critic_loss'))
+        ax.set_ylim(0, Qmax)
+        # ax.set_xlabel('1k Interactions')
+        ax.set_title('Critic Loss')
+        ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
 
 
     if 'model_obs_loss' in df:
         ax = axs[2]
         ax.plot(*get_smooth('model_obs_loss'), label='Obs Loss')
         ax.set_ylim(0, obsmax)
-        ax.set_xlabel('1k Iteration')
-        ax.set_ylabel('Obs Loss')
-        ax.legend()
+        ax.set_title('Obs Loss')
+        ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
+        # ax.legend()
 
-        if 'model_reward_loss' in df:
+        if 'model_reward_loss' in df and plot_rew:
             ax = ax.twinx()
             ax.plot(*get_smooth('model_reward_loss'), label='Rew Loss', color='red')
-            ax.set_xlabel('1k Iteration')
             ax.set_ylabel('Rew Loss')
             ax.set_ylim(0, None)
             ax.legend()
+            ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
 
     ax = axs[3]
     ax.plot(*get_smooth('alpha_value'), label='alpha loss')
     ax.set_title('Alpha Value')
     ax.set_yscale('log')
+    ax.set_xlabel('Interations')
+    ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
 
     ax = axs[4]
     ax.plot(*get_smooth('actor_entropy'))
     ax.plot(*get_smooth('actor_target_entropy'))
     ax.set_title('Actor Entropy')
+    ax.set_xlabel('Interactions')
+    ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
 
     ax = axs[5]
-    l, = ax.plot(df.step/1E3, df.episode_reward, alpha=0.4)
+    if smooth_train_rew:
+        l, = ax.plot(*get_smooth('episode_reward'), alpha=0.4)
+    else:
+        l, = ax.plot(df.step, df.episode_reward, alpha=0.4)
     df = load_eval(root)
     if df is not None and len(df) > 0:
         if len(df) == 1:
-            ax.scatter(df.step/1E3, df.episode_reward, color=l.get_color())
+            ax.scatter(df.step, df.episode_reward, color=l.get_color())
         else:
-            ax.plot(df.step/1E3, df.episode_reward, color=l.get_color())
+            ax.plot(df.step, df.episode_reward, color=l.get_color())
         if 'gym' not in config.env_name and 'mbpo' not in config.env_name \
           and config.env_name != 'Humanoid-v2' and 'pets' not in config.env_name:
             ax.set_ylim(0, 1000)
-    ax.set_xlabel('1k Iteration')
+    ax.set_xlabel('Interactions')
     ax.set_title('Reward')
+    ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
 
     if print_cfg:
         pprint(config)
@@ -96,8 +111,16 @@ def plot_ac_exp(root, print_cfg=False, print_overrides=True, Qmax=None,
         pprint(o)
 
     fig.tight_layout()
-    fig.subplots_adjust(top=0.92)
-    fig.suptitle(root + ': ' + config.env_name, fontsize=20)
+    fig.subplots_adjust(top=0.9)
+    if suptitle:
+        fig.suptitle(suptitle, fontsize=20)
+    else:
+        fig.suptitle(root + ': ' + config.env_name, fontsize=20)
+
+    if save:
+        fig.savefig(save, transparent=True)
+        os.system(f'convert -trim {save} {save}')
+
     return fig, axs
 
 
@@ -219,8 +242,9 @@ def plot_agg(df, agg, ncol=4):
 def plot_ablation(
     groups, title, xmax=None,
     save=None, lw=3,
-    xlabel='Timestep', ylabel='Reward',
-    legend=False, sac_lim=None
+    xlabel='Interactions', ylabel='Reward',
+    legend=False, only_include_valid=False,
+    axhline=None,
 ):
     fig, ax = plt.subplots(1, 1, figsize=(4.5,3))
 
@@ -228,10 +252,14 @@ def plot_ablation(
         all_df = []
         min_step = None
         for root in group['roots']:
-            df = load_eval(d)
-            if min_step is None or max(df['step']) < min_step:
-                min_step = max(df['step'])
-            df['f'] = eval_f
+            df = load_eval(root)
+            if df is None:
+                continue
+            t = max(df['step'])
+            if min_step is None or (only_include_valid and t < min_step) or \
+                    (not only_include_valid and t > min_step):
+                min_step = t
+            # df['f'] = eval_f
             all_df.append(df)
 
         step_interp = np.linspace(0, min_step, num=20)
@@ -249,28 +277,32 @@ def plot_ablation(
             sns.lineplot(x='step', y='rew', data=all_df_interp,
                          ax=ax, linewidth=lw, label=label)
 
-    ax.axhline(sac_lim, lw=lw, linestyle='--', color='k')
-
     ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
     if xmax is not None:
         ax.set_xlim(0, xmax)
 
-    ax.set_xlabel('Timestep')
+    if axhline:
+        ax.axhline(axhline, lw=lw, linestyle='--', color='k')
+
+    ax.set_xlabel('Interactions')
     ax.set_ylabel('Reward')
     ax.set_title(title)
     fig.tight_layout()
 
     if save is not None:
-        fig.savefig(save)
+        fig.savefig(save, transparent=True)
         os.system(f'convert -trim {save} {save}')
 
 def plot_comparison(
-    ac_base, ac_is, mbpo_f, sac_f, title, xmax=None,
-    sac_scale=1., steve=None, cb=None, save=None, lw=3,
-    xlabel='Timestep', ylabel='Reward', alive_bonus=None,
-    n_interp=20, n_smooth=2, only_include_valid=True
+    ac_base, ac_is, mbpo_f, title, xmax=None,
+    steve=None, cb=None, save=None, lw=3,
+    xlabel='Interactions', ylabel='Reward', alive_bonus=None,
+    n_interp=20, n_smooth=4, only_include_valid=True,
+    sac_base=None, sac_is=None, sac_f=None, sac_scale=1.0
 ):
     fig, ax = plt.subplots(1, 1, figsize=(4.5,3))
+
+    colors = sns.color_palette("deep")
 
     all_df = []
     min_step = None
@@ -298,21 +330,45 @@ def plot_comparison(
     all_df_interp = pd.concat(all_df_interp)
     sns.lineplot(x='step', y='rew', data=all_df_interp, ax=ax, linewidth=lw)
 
-    sac_data = np.loadtxt(sac_f, delimiter=',').T
-    init_cost = np.expand_dims(np.array([0., all_df_interp.iloc[0].rew]), 1)
+    # SAC
+    if sac_is is not None:
+        sac_dfs = []
+        for i in sac_is:
+            root = f'{sac_base}/{i}'
+            df = load_eval(root)
+            if df is None:
+                continue
+            t = max(df['step'])
+            if min_step is None or (only_include_valid and t < min_step) or \
+                    (not only_include_valid and t > min_step):
+                min_step = max(df['step'])
 
-    sac_data = np.hstack((init_cost, sac_data))
-    sac_data[1] = sac_scale*sac_data[1] # Correcting the reconstruction of their data
-    l, = ax.plot(1e6*sac_data[0], sac_data[1], linewidth=lw)
-    ax.axhline(sac_data[1][-3:].mean(), linestyle='--', color=l.get_color(), linewidth=lw)
+            step, rew = df['step'], df['episode_reward']
+            step = step[n_smooth-1:]
+            rew = np.convolve(rew, np.full(n_smooth, 1./n_smooth), mode='valid')
+            rew_interp = np.interp(step_interp, step, rew)
+            df = pd.DataFrame({'step': step_interp, 'rew': rew_interp})
+            sac_dfs.append(df)
+        sac_dfs = pd.concat(sac_dfs)
+        sns.lineplot(x='step', y='rew', data=sac_dfs, ax=ax, linewidth=lw)
+
+    if sac_f is not None:
+        sac_data = np.loadtxt(sac_f, delimiter=',').T
+        init_cost = np.expand_dims(np.array([0., all_df_interp.iloc[0].rew]), 1)
+
+        sac_data = np.hstack((init_cost, sac_data))
+        sac_data[1] = sac_scale*sac_data[1] # Correcting the reconstruction of their data
+        l, = ax.plot(1e6*sac_data[0], sac_data[1], linewidth=lw)
+        # ax.axhline(sac_data[1][-3:].mean(), linestyle='--', color=l.get_color(), linewidth=lw)
 
     mbpo_data = pkl.load(open(mbpo_f, 'rb'))
-    mbpo_data['step'] = mbpo_data['x']*1e3
-#     ax.plot(mbpo_data['step'], mbpo_data['y'], linewidth=lw)
-    min_step = min(max(mbpo_data['step']), min_step)
-    step_interp = np.linspace(0, min_step, num=20)
-    mbpo_interp = np.interp(step_interp, mbpo_data['step'], mbpo_data['y'])
-    ax.plot(step_interp, mbpo_interp, linewidth=lw)
+#     mbpo_data['step'] = mbpo_data['x']*1e3
+# #     ax.plot(mbpo_data['step'], mbpo_data['y'], linewidth=lw)
+#     min_step = min(max(mbpo_data['step']), min_step)
+#     step_interp = np.linspace(0, min_step, num=20)
+#     mbpo_interp = np.interp(step_interp, mbpo_data['step'], mbpo_data['y'])
+#     ax.plot(step_interp, mbpo_interp, linewidth=lw)
+    ax.axhline(mbpo_data['y'][-1], linestyle='--', linewidth=lw, color=colors[4])
 
     if steve is not None:
         ax.axhline(steve, linestyle='--', color='g', linewidth=lw)
@@ -328,11 +384,11 @@ def plot_comparison(
     if xmax is not None:
         ax.set_xlim(0, xmax)
 
-    ax.set_xlabel('Timestep')
+    ax.set_xlabel('Interactions')
     ax.set_ylabel('Reward')
     ax.set_title(title)
     fig.tight_layout()
 
     if save is not None:
-        fig.savefig(save)
+        fig.savefig(save, transparent=True)
         os.system(f'convert -trim {save} {save}')

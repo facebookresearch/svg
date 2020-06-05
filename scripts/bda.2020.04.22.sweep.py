@@ -26,18 +26,20 @@ def main():
         os.makedirs(sweep_dir)
 
     # envs = ['poplin_ant', 'poplin_cheetah', 'poplin_pets_cheetah',
-    #         'poplin_swimmer', 'poplin_walker2d']
+    #         'poplin_swimmer', 'poplin_walker2d', 'poplin_hopper']
+    envs = ['poplin_walker2d', 'poplin_hopper']
     # envs = ['mbpo_cheetah', 'mbpo_hopper', 'mbpo_walker2d',
     #         'mbpo_humanoid', 'mbpo_ant']
-    envs = ['mbpo_walker2d']
+    # envs = ['mbpo_walker2d']
 
-    n_sample = 10
+    n_sample = 20
     n_seed = 10
 
     global_i = 1
     for sample in range(n_sample):
         for env in envs:
-            horizon = npr.choice([3, 5])
+            # horizon = npr.choice([3, 5])
+            horizon = npr.choice([3])
             init_targ_entr = npr.choice([1, 0, -1, -2])
             final_targ_entr_choices = list(range(init_targ_entr, -5, -1)) + \
               [-2**i for i in range(3,5+1)]

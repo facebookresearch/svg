@@ -160,8 +160,8 @@ hydra:
                 slurm:
                     max_num_timeout: 100000
                     time: 4319
-                    partition: learnfair
-                    # partition: priority
-                    # comment: For NeurIPS
+                    # partition: learnfair
+                    partition: priority
+                    comment: For NeurIPS
 
         mem_limit: 64

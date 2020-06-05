@@ -11,5 +11,5 @@ learn_temp:
 
 agent:
   params:
-    horizon: 5
+    horizon: 3
     warmup_steps: 10000

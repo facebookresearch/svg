@@ -1,0 +1,16 @@
+env_name: dmc_humanoid_run
+num_train_steps: 1e7
+eval_freq: 25000
+replay_buffer_capacity: 1e6
+normalize_obs: false
+
+learn_temp:
+  params:
+    init_targ_entr: -10
+    final_targ_entr: -10
+    entr_decay_factor: 1.0
+
+agent:
+  params:
+    horizon: 0
+    warmup_steps: 10000

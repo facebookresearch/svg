@@ -13,6 +13,7 @@ eval_freq: ?? # Over-ridden by env
 num_eval_episodes: 10
 fixed_eval: false
 
+pixels: false
 normalize_obs: true
 
 device: cuda

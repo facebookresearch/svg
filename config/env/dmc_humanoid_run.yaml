@@ -3,6 +3,7 @@ num_train_steps: 1e7
 eval_freq: 25000
 replay_buffer_capacity: 1e6
 normalize_obs: false
+delete_replay_at_end: false
 
 learn_temp:
   params:

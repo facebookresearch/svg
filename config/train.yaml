@@ -1,0 +1,158 @@
+defaults:
+  - env: mbpo_ant
+  # - hydra/sweeper: svg
+  - hydra/launcher: submitit_slurm
+
+experiment: test
+
+sweep:
+  n_sample: 50
+  n_seed: 10
+
+replay_buffer_capacity: min(${num_train_steps}, 1e6)
+# replay_buffer_capacity: ${num_train_steps}
+
+num_seed_steps: 1000
+
+eval_freq: ?? # Over-ridden by env
+num_eval_episodes: 10
+fixed_eval: false
+
+pixels: false
+normalize_obs: true
+
+device: cuda
+action_repeat: 1
+
+log_freq: 10000
+log_save_tb: false
+
+save_video: false
+delete_replay_at_end: true
+
+save_freq: 100000
+save_best_eval: true
+save_zfill: 7
+
+seed: 1
+
+# For debugging:
+num_initial_states: null # Use a subset of initial states
+max_episode_steps: null # If set, use shorter episodes
+
+model_free_hidden_dim: 512
+model_free_hidden_depth: 4
+obs_dim: ???
+action_dim: ???
+action_range: ???
+
+agent:
+  _target_: svg.agent.SACSVGAgent
+  env_name: ${env_name}
+  obs_dim: ${obs_dim}
+  action_dim: ${action_dim}
+  action_range: ${action_range}
+  device: ${device}
+  dx_cfg: ${dx}
+  num_train_steps: ${num_train_steps}
+
+  temp_cfg: ${learn_temp}
+  # temp_cfg: null # auto-set to best for env+agent if null
+
+  actor_cfg: ${normal_actor}
+  actor_lr: 1e-4
+  actor_betas: [0.9, 0.999]
+  actor_update_freq: 1
+  actor_mve: true
+  actor_detach_rho: false
+  actor_dx_threshold: null
+
+  critic_cfg: ${double_q_critic}
+  critic_lr: 1e-4
+  critic_tau: 0.005
+  critic_target_update_freq: 1
+  critic_target_mve: false
+  full_target_mve: False
+
+  discount: 0.99
+  seq_batch_size: 512
+  step_batch_size: 1024
+  horizon: 3
+  seq_train_length: ${agent.horizon}
+  update_freq: 1
+
+  model_update_freq: 1
+  model_update_repeat: 4
+
+  model_free_update_repeat: 1
+
+  rew_hidden_dim: 512
+  rew_hidden_depth: 2
+  rew_lr: 1e-3
+
+  done_hidden_dim: 512
+  done_hidden_depth: 2
+  done_lr: 1e-3
+  done_ctrl_accum: true
+
+  warmup_steps: 0 # Auto-set if null
+
+  det_suffix: 0.0
+
+dx:
+  _target_: svg.dx.SeqDx
+  env_name: ${env_name}
+  obs_dim: ${obs_dim}
+  action_dim: ${action_dim}
+  action_range: ${action_range}
+  horizon: ${agent.horizon}
+  device: ${device}
+  detach_xt: true
+  xu_enc_hidden_dim: 512
+  xu_enc_hidden_depth: 2
+  x_dec_hidden_dim: 512
+  x_dec_hidden_depth: 0
+  clip_grad_norm: 1.0
+  rec_type: GRU
+  rec_latent_dim: 512
+  rec_num_layers: 2
+  lr: 1e-3
+
+normal_actor:
+  _target_: svg.actor.Actor
+  obs_dim: ${obs_dim}
+  action_dim: ${action_dim}
+  hidden_dim: ${model_free_hidden_dim}
+  hidden_depth: ${model_free_hidden_depth}
+  log_std_bounds: [-5, 2]
+
+double_q_critic:
+  _target_: svg.critic.DoubleQCritic
+  obs_dim: ${obs_dim}
+  action_dim: ${action_dim}
+  hidden_dim: ${model_free_hidden_dim}
+  hidden_depth: ${model_free_hidden_depth}
+
+learn_temp:
+  _target_: svg.temp.LearnTemp
+  init_temp: 0.1
+  max_steps: ${num_train_steps}
+  init_targ_entr: -${action_dim}
+  final_targ_entr: -${action_dim}
+  entr_decay_factor: 0.
+  only_decrease_alpha: false
+  lr: 1e-4
+  device: ${device}
+
+hydra:
+  run:
+    dir: ./exp/local/${now:%Y.%m.%d}/${now:%H%M}_${experiment}
+  sweep:
+    dir: ./exp/${now:%Y.%m.%d}/${now:%H%M}_${experiment}
+    subdir: ${hydra.job.num}
+  launcher:
+    max_num_timeout: 100000
+    timeout_min: 4319
+    partition: scavenge
+    mem_gb: 64
+    gpus_per_node: 1

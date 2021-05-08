@@ -1,0 +1,14 @@
+# @package _global_
+env_name: gym_fswimmer
+num_train_steps: 5e4
+eval_freq: 10000
+
+# Environment-specific overrides:
+learn_temp:
+  init_targ_entr: -2
+  final_targ_entr: -32
+  entr_decay_factor: 0.125
+
+agent:
+  horizon: 3
+  warmup_steps: 10000

@@ -1,0 +1,14 @@
+# @package _global_
+env_name: gym_hopper
+num_train_steps: 2e5
+eval_freq: 10000
+
+# Environment-specific overrides:
+learn_temp:
+  init_targ_entr: 1
+  final_targ_entr: 0
+  entr_decay_factor: 32.
+
+agent:
+  horizon: 3
+  warmup_steps: 10000

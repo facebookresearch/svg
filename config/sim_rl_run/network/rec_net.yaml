@@ -15,3 +15,4 @@ network:
     logvar_penalty_coeff: 1e-2
     wait_epochs: 4
     wait_tol: 1e-2
+    early_stopping: True

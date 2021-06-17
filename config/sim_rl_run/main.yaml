@@ -1,0 +1,19 @@
+defaults:
+  - network: fc_net
+  - reg_model: mle_soloist
+
+ckpt_dir: sac_walker2d
+exp_name: test
+log_dir: ${ckpt_dir}/${exp_name}/${reg_model.name}_${reg_model.params.mode}_${network.name}_h${sim_params.train_seq_len}-${sim_params.test_seq_len}
+
+sim_params:
+  max_seq_len: 1000
+  train_seq_len: 1    # Subsequence length for reg_model training
+  test_seq_len: 1     # Subsequence length for reg_model evaluation
+  num_evals: 20        # How many times to train and evaluate the reg_model in a sim run
+
+max_transitions:    # Set this to O(10k) for fast test runs
+subsample_rate: 1.0
+holdout_ratio: 0.1  # Ratio of training episodes to hold out for early stopping
+num_seeds: 3        # How many times to repeat the sim
+

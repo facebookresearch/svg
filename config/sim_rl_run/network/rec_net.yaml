@@ -1,0 +1,18 @@
+network:
+  name: RecurrentNet
+  kwargs:
+    enc_hidden_dim: 512
+    enc_depth: 2
+    dec_hidden_dim: 512
+    dec_depth: 0
+    rec_type: GRU
+    rec_hidden_dim: 512
+    rec_depth: 2
+  fit_params:
+    batch_size: 256
+    lr: 1e-3
+    max_grad_norm:
+    logvar_penalty_coeff: 1e-2
+    wait_epochs: 4
+    wait_tol: 1e-2
+    early_stopping: True

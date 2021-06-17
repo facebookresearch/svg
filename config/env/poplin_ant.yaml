@@ -3,7 +3,6 @@ env_name: gym_ant
 num_train_steps: 2e5
 eval_freq: 10000
 
-# TODO: Update all of these
 # Environment-specific overrides:
 learn_temp:
   init_targ_entr: 1

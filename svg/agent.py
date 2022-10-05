@@ -1,6 +1,7 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
 
 import abc
+import copy
 
 import torch
 import torch.nn.functional as F
@@ -53,7 +54,8 @@ class SACSVGAgent(Agent):
         done_hidden_dim, done_hidden_depth, done_lr,
         done_ctrl_accum,
         model_update_repeat,
-        model_free_update_repeat,
+        actor_update_repeat,
+        critic_update_repeat,
         horizon,
         warmup_steps,
         det_suffix,
@@ -79,14 +81,15 @@ class SACSVGAgent(Agent):
         self.update_freq = update_freq
         self.model_update_repeat = model_update_repeat
         self.model_update_freq = model_update_freq
-        self.model_free_update_repeat = model_free_update_repeat
+        self.actor_update_repeat = actor_update_repeat
+        self.critic_update_repeat = critic_update_repeat
 
         self.horizon = horizon
 
         self.warmup_steps = warmup_steps
 
-        self.temp = hydra.utils.instantiate(temp_cfg)
-        self.dx = hydra.utils.instantiate(dx_cfg).to(self.device)
+        self.temp = temp_cfg
+        self.dx = dx_cfg.to(self.device)
 
         self.rew = utils.mlp(
             obs_dim+action_dim, rew_hidden_dim, 1, rew_hidden_depth
@@ -99,7 +102,7 @@ class SACSVGAgent(Agent):
         self.done_ctrl_accum = done_ctrl_accum
         self.done_opt = torch.optim.Adam(self.done.parameters(), lr=done_lr)
 
-        self.actor = hydra.utils.instantiate(actor_cfg).to(self.device)
+        self.actor = actor_cfg.to(self.device)
         mods = [self.actor]
         params = utils.get_params(mods)
         self.actor_opt = torch.optim.Adam(
@@ -111,8 +114,8 @@ class SACSVGAgent(Agent):
 
         self.critic = None
         if critic_cfg is not None:
-            self.critic = hydra.utils.instantiate(critic_cfg).to(self.device)
-            self.critic_target = hydra.utils.instantiate(critic_cfg).to(
+            self.critic = critic_cfg.to(self.device)
+            self.critic_target = copy.deepcopy(critic_cfg).to(
                 self.device)
             self.critic_target.load_state_dict(self.critic.state_dict())
             self.critic_target.train()
@@ -384,8 +387,7 @@ class SACSVGAgent(Agent):
                         self.rolling_dx_loss = factor*self.rolling_dx_loss + \
                           (1.-factor)*dx_loss
 
-        n_updates = 1 if step < self.warmup_steps else self.model_free_update_repeat
-        for i in range(n_updates):
+        for i in range(self.critic_update_repeat):
             obs, action, reward, next_obs, not_done, not_done_no_max = \
               replay_buffer.sample(self.step_batch_size)
 
@@ -398,17 +400,16 @@ class SACSVGAgent(Agent):
                         action, reward, not_done_no_max, logger, step
                     )
 
+        for i in range(self.actor_update_repeat):
+            obs, action, reward, next_obs, not_done, not_done_no_max = \
+              replay_buffer.sample(self.step_batch_size)
             if step % self.actor_update_freq == 0:
                 self.update_actor_and_alpha(obs, logger, step)
 
-            if self.rew_opt is not None:
-                self.update_rew_step(obs, action, reward, logger, step)
 
-            self.update_done_step(obs, action, not_done_no_max, logger, step)
-
-            if self.critic is not None and step % self.critic_target_update_freq == 0:
-                utils.soft_update_params(
-                    self.critic, self.critic_target, self.critic_tau)
+        if self.critic is not None and step % self.critic_target_update_freq == 0:
+            utils.soft_update_params(
+                self.critic, self.critic_target, self.critic_tau)
 
 
     def update_rew_step(self, obs, action, reward, logger, step):

@@ -1,7 +1,7 @@
 defaults:
-  - env: mbpo_ant
-  # - hydra/sweeper: svg
-  - hydra/launcher: submitit_slurm
+  - env@_global_: mbpo_humanoid
+  - override hydra/launcher: submitit_slurm
+  - override hydra/sweeper: svg
 
 experiment: test
 
@@ -14,7 +14,7 @@ replay_buffer_capacity: min(${num_train_steps}, 1e6)
 
 num_seed_steps: 1000
 
-eval_freq: ?? # Over-ridden by env
+# eval_freq: ?? # Over-ridden by env
 num_eval_episodes: 10
 fixed_eval: false
 
@@ -84,7 +84,8 @@ agent:
   model_update_freq: 1
   model_update_repeat: 4
 
-  model_free_update_repeat: 1
+  actor_update_repeat: 1
+  critic_update_repeat: 1
 
   rew_hidden_dim: 512
   rew_hidden_depth: 2

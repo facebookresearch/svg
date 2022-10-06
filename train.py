@@ -10,6 +10,8 @@ import shutil
 import time
 import pickle as pkl
 
+from gym.utils.step_api_compatibility import step_api_compatibility
+
 from setproctitle import setproctitle
 setproctitle('svg')
 
@@ -98,7 +100,8 @@ class Workspace(object):
                         action = self.agent.act(obs_norm, sample=False)
                     else:
                         action = self.agent.act(obs, sample=False)
-                obs, reward, done, _ = self.env.step(action)
+                obs, reward, done, _ = step_api_compatibility(
+                    self.env.step(action), output_truncation_bool=False)
                 self.video_recorder.record(self.env)
                 episode_reward += reward
             episode_rewards.append(episode_reward)
@@ -117,7 +120,7 @@ class Workspace(object):
         assert self.episode_reward == 0.0
         assert self.episode_step == 0
         self.agent.reset()
-        obs = self.env.reset()
+        obs, _ = self.env.reset()
 
         start_time = time.time()
         while self.step < self.cfg.num_train_steps:
@@ -153,7 +156,7 @@ class Workspace(object):
 
                 if self.cfg.num_initial_states is not None:
                     self.env.set_seed(self.episode % self.cfg.num_initial_states)
-                obs = self.env.reset()
+                obs, _ = self.env.reset()
                 self.agent.reset()
                 self.done = False
                 self.episode_reward = 0
@@ -177,7 +180,8 @@ class Workspace(object):
             if self.step >= self.cfg.num_seed_steps-1:
                 self.agent.update(self.replay_buffer, self.logger, self.step)
 
-            next_obs, reward, self.done, _ = self.env.step(action)
+            next_obs, reward, self.done, _ = step_api_compatibility(
+                self.env.step(action), output_truncation_bool=False)
 
             # allow infinite bootstrap
             done_float = float(self.done)

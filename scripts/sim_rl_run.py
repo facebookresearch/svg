@@ -1,3 +1,5 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+
 import os
 import pickle as pkl
 from pathlib import Path

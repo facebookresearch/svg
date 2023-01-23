@@ -58,7 +58,15 @@ class EvalVis:
         if os.path.exists(self.eval_dir):
             shutil.rmtree(self.eval_dir)
         os.makedirs(self.eval_dir, exist_ok=True)
-        self.exp = pkl.load(open(f'{args.exp_root}/{args.pkl_tag}.pkl', 'rb'))
+        fname = f'{args.exp_root}/{args.pkl_tag}.pkl'
+        if os.path.exists(fname):
+            self.exp = pkl.load(open(fname, 'rb'))
+        else:
+            fname = f'{args.exp_root}/{args.pkl_tag}.pt'
+            if os.path.exists(fname):
+                self.exp = torch.load(fname)
+            else:
+                raise RuntimeError('unable to find checkpoint')
         del self.exp.logger
         self.env = self.exp.env
         self.max_obs = torch.zeros(self.exp.agent.obs_dim)

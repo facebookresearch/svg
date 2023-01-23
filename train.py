@@ -23,14 +23,9 @@ from svg import agent, utils, temp, dx, actor, critic
 from svg.logger import Logger
 from svg.replay_buffer import ReplayBuffer
 
-try:
-    if os.isatty(sys.stdout.fileno()):
-        from IPython.core import ultratb
-        sys.excepthook = ultratb.FormattedTB(
-            mode='Verbose', color_scheme='Linux', call_pdb=1)
-except:
-    pass
-
+from IPython.core import ultratb
+sys.excepthook = ultratb.FormattedTB(
+    mode='Plain', color_scheme='Neutral', call_pdb=1)
 
 class Workspace(object):
     def __init__(self, cfg):

@@ -82,6 +82,17 @@ our notebook [nbs/mbpo.ipynb](./nbs/mbpo.ipynb), which can
 also serve as a starting point for analyzing and
 developing further methods.
 
+# Experiment run for a trained humanoid attaining 10k reward
+
+The directory [trained-humanoid](./trained-humanoid) contains
+the experiment logs (`*.csv`) and checkpoint file (`latest.pkl`)
+for a humanoid agent that attains approximately 10k reward.
+It can be evaluated and visualized with:
+
+```bash
+./eval-vis-model.py trained-humanoid
+```
+
 # Reproducing our sweeps and ablations
 Our main hyper-parameter sweeps are run with hydra's
 multi-tasking mode and can be launched with the following

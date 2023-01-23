@@ -1,0 +1,3 @@
+- experiment=humanoid
+- env=mbpo_humanoid
+- seed=9

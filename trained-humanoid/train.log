@@ -1,0 +1,8 @@
+[2023-01-20 20:26:33,492][submitit][INFO] - Job has timed out. Ran 4316 minutes out of requested 4319 minutes.
+[2023-01-20 20:26:33,493][submitit][WARNING] - Caught signal SIGUSR2 on learnfair0404: this job is timed-out.
+[2023-01-20 20:26:33,494][submitit][INFO] - Calling checkpoint method.
+[2023-01-20 20:26:33,659][submitit][INFO] - Requeued job 2119878_9 (99999 remaining timeouts)
+[2023-01-20 20:26:33,659][submitit][INFO] - Exiting gracefully after preemption/timeout.
+[2023-01-20 20:26:33,694][submitit][WARNING] - Bypassing signal SIGTERM
+[2023-01-20 20:26:33,695][submitit][WARNING] - Bypassing signal SIGCONT
+[2023-01-21 17:55:14,017][submitit][INFO] - Job completed successfully

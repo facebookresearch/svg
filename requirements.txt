@@ -46,7 +46,7 @@ tensorboard-plugin-wit==1.8.1
 termcolor==1.1.0
 torch==1.13.1
 torchvision==0.13.1
-tqdm==4.64.1
+tqdm==4.66.3
 typing_extensions==4.3.0
 urllib3==1.26.12
 wandb==0.13.2

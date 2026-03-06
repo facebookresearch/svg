@@ -14,7 +14,7 @@ importlib-resources==5.9.0
 labmaze==1.0.5
 lockfile==0.12.2
 lxml==4.9.1
-Markdown==3.4.1
+Markdown==3.8.1
 MarkupSafe==2.1.1
 mujoco==2.2.1
 mujoco-py==1.50.1.68
